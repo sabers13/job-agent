@@ -20,6 +20,7 @@ def signup(req: SignupRequest):
             raise HTTPException(status_code=409, detail="Email already registered")
 
         user = create_user(db, email=req.email, password_hash=hash_password(req.password))
+        db.commit()
         return SignupResponse(id=str(user.id), email=user.email)
 
 
