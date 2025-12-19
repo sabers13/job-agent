@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -326,7 +326,7 @@ class RunLogsResponse(BaseModel):
     finished: bool
 
 
-@app.get("/api/profiles", response_model=dict)
+@app.get("/api/profiles", response_model=dict, dependencies=[Depends(get_current_user)])
 def list_profiles():
     profiles = profile_store.load_profiles()
     items = [
@@ -340,7 +340,7 @@ def list_profiles():
     return {"profiles": items}
 
 
-@app.get("/api/profile/{key}", response_model=FocusProfileModel)
+@app.get("/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
 def get_profile_api(key: str):
     data = profile_store.get_profile(key)
     if not data:
@@ -348,13 +348,13 @@ def get_profile_api(key: str):
     return FocusProfileModel(**data)
 
 
-@app.post("/api/profile/{key}", response_model=FocusProfileModel)
+@app.post("/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
 def upsert_profile_api(key: str, profile: FocusProfileModel):
     stored = profile_store.upsert_profile(key, profile.model_dump())
     return FocusProfileModel(**stored)
 
 
-@app.delete("/api/profile/{key}", response_model=dict)
+@app.delete("/api/profile/{key}", response_model=dict, dependencies=[Depends(get_current_user)])
 def delete_profile_api(key: str):
     if not profile_store.get_profile(key):
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -522,7 +522,7 @@ def _run_prefect_batch(
     run_manager.write_status(run_id, status)
 
 
-@app.post("/api/run_single", response_model=RunSingleResponse)
+@app.post("/api/run_single", response_model=RunSingleResponse, dependencies=[Depends(get_current_user)])
 async def run_single(req: RunSingleRequest) -> RunSingleResponse:
     try:
         focus = get_focus_config(req.profile_key)
@@ -574,7 +574,7 @@ async def run_single(req: RunSingleRequest) -> RunSingleResponse:
     )
 
 
-@app.post("/api/start_batch_run", response_model=BatchRunStatus)
+@app.post("/api/start_batch_run", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)])
 def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks):
     try:
         get_focus_config(req.profile_key)
@@ -606,7 +606,7 @@ def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks
     return BatchRunStatus(**status)
 
 
-@app.get("/api/run_status/{run_id}", response_model=BatchRunStatus)
+@app.get("/api/run_status/{run_id}", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)])
 def get_run_status(run_id: str):
     status = run_manager.load_status(run_id)
     if not status:
@@ -614,7 +614,7 @@ def get_run_status(run_id: str):
     return BatchRunStatus(**status)
 
 
-@app.get("/api/run_logs/{run_id}", response_model=RunLogsResponse)
+@app.get("/api/run_logs/{run_id}", response_model=RunLogsResponse, dependencies=[Depends(get_current_user)])
 def get_run_logs(run_id: str, offset: int = 0, max_bytes: int = 4096):
     status = run_manager.load_status(run_id)
     if status is None:
