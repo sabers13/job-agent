@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
 from app.pipeline.models import UnifiedJobPosting
 
@@ -135,3 +135,31 @@ class SearchStepstoneListResponse(_Base):
     jobs: List[JobListItem] = []
     count: int = 0
     list_cutoff_iso: Optional[str] = None
+
+
+# --- Auth -----------------------------------------------------------------
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class SignupResponse(BaseModel):
+    id: str
+    email: EmailStr
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class MeResponse(BaseModel):
+    id: str
+    email: EmailStr

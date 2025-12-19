@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -34,6 +34,7 @@ from app.api.schemas import (
     ScoringResult,
     UnifiedJobPostingOut,
 )
+from app.api.auth_routes import router as auth_router
 from app.db.health import check_db
 from .pipeline.templating import generate_bundle
 from .pipeline.output import write_bundle, write_summary
@@ -53,6 +54,7 @@ load_dotenv()
 
 app = FastAPI(title="Job Fetching Agent (DE · Junior · EN-friendly)", version="0.3.1")
 templates = Jinja2Templates(directory="templates")
+app.include_router(auth_router)
 
 use_playwright_default = settings.use_playwright_default
 headless_mode = settings.headless
