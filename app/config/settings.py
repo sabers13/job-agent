@@ -143,6 +143,11 @@ class Settings:
     db_pool_size: int = _env_int("JOBAGENT_DB_POOL_SIZE", default=5)
     db_max_overflow: int = _env_int("JOBAGENT_DB_MAX_OVERFLOW", default=10)
 
+    # Auth / JWT
+    jwt_secret: str | None = _env("JOBAGENT_JWT_SECRET", default=None)
+    jwt_alg: str = _env("JOBAGENT_JWT_ALG", default="HS256") or "HS256"
+    jwt_expires_min: int = _env_int("JOBAGENT_JWT_EXPIRES_MIN", default=120)
+
     # Paths
     output_dir: Path = Path(os.getenv("JOBAGENT_OUTPUT_DIR", "output"))
     seeds_file: Path = Path(

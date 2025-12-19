@@ -7,7 +7,7 @@ apprise==1.9.6
 asgi-lifespan==2.1.0
 asyncpg==0.31.0
 attrs==25.4.0
-bcrypt==5.0.0
+bcrypt==3.2.2
 beautifulsoup4==4.12.3
 cachetools==5.5.2
 certifi==2025.11.12
