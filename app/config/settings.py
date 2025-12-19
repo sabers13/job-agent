@@ -7,7 +7,9 @@ from pathlib import Path
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    # Resolve repo root: app/config/settings.py -> config -> app -> repo_root
+    repo_root = Path(__file__).resolve().parents[2]
+    load_dotenv(dotenv_path=repo_root / ".env", override=False)
 except Exception:
     pass
 
