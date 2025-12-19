@@ -1,0 +1,10 @@
+# Application Report — {{ job.company }}
+
+- **Role:** {{ job.title }}
+- **Score:** {{ score_val or "n/a" }}
+- **Location:** {{ job.location }}
+- **Employment:** {{ job.employment_type }}
+
+## Reasons
+{% for r in scoring.reasons %}- {{ r }}
+{% endfor %}

@@ -1,0 +1,146 @@
+[
+  {
+    "slug": "data-analyst",
+    "seed_url": "https://www.stepstone.de/jobs/data-analyst/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "data-scientist",
+    "seed_url": "https://www.stepstone.de/jobs/data-scientist/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "data-engineer",
+    "seed_url": "https://www.stepstone.de/jobs/data-engineer/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "python",
+    "seed_url": "https://www.stepstone.de/jobs/python/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "business-intelligence",
+    "seed_url": "https://www.stepstone.de/jobs/business-intelligence/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "business-analyst",
+    "seed_url": "https://www.stepstone.de/jobs/business-analyst/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "junior-developer",
+    "seed_url": "https://www.stepstone.de/jobs/junior-developer/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "analytics",
+    "seed_url": "https://www.stepstone.de/jobs/analytics/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  }
+]

@@ -1,0 +1,112 @@
+{
+  "junior_data_bi": {
+    "profile_name": "Junior Data/BI Default",
+    "description": "Default focus profile from app config.",
+    "search_seeds": [],
+    "target_seniority": "junior",
+    "max_allowed_seniority": "mid",
+    "max_required_experience_years": 3,
+    "experience_penalty_strength": 1.0,
+    "core_skills": [
+      "Python",
+      "SQL"
+    ],
+    "nice_to_have_skills": [
+      "Power BI",
+      "DAX",
+      "Power Query",
+      "Pandas",
+      "NumPy"
+    ],
+    "preferred_titles": [
+      "Junior Data Analyst",
+      "Junior BI Analyst",
+      "Junior BI Developer",
+      "Analytics Engineer",
+      "Python Developer",
+      "Working Student Data",
+      "Data/BI Intern"
+    ],
+    "excluded_titles": [
+      "Senior",
+      "Lead",
+      "Principal",
+      "Head",
+      "Manager"
+    ],
+    "preferred_locations": [
+      "Deutschland",
+      "NRW",
+      "Dortmund",
+      "Cologne",
+      "Düsseldorf",
+      "Essen"
+    ],
+    "excluded_locations": [],
+    "min_german_level": "B1",
+    "requires_student_status": true,
+    "constraints": {
+      "german_level": "Unknown",
+      "relocation_ok": true,
+      "strict_language_blocker": true,
+      "blocker_caps": {
+        "hard": 35,
+        "soft": 55
+      }
+    }
+  },
+  "test": {
+    "profile_name": "Junior Data/BI Berlin",
+    "description": "Early-career data/BI focus, Berlin/remote-friendly.",
+    "search_seeds": [
+      "junior-data-analyst",
+      "junior-developer"
+    ],
+    "target_seniority": "junior",
+    "max_allowed_seniority": "mid",
+    "max_required_experience_years": 3,
+    "experience_penalty_strength": 1.5,
+    "core_skills": [
+      "Python",
+      "SQL"
+    ],
+    "nice_to_have_skills": [
+      "Pandas",
+      "NumPy",
+      "Power BI",
+      "dbt",
+      "Airflow"
+    ],
+    "preferred_titles": [
+      "Junior Data Analyst",
+      "Junior BI Analyst",
+      "Data Analyst",
+      "Analytics Engineer",
+      "Working Student Data"
+    ],
+    "excluded_titles": [
+      "Senior",
+      "Lead",
+      "Principal",
+      "Head",
+      "Manager"
+    ],
+    "preferred_locations": [
+      "Berlin",
+      "Remote",
+      "Deutschland"
+    ],
+    "excluded_locations": [],
+    "min_german_level": "B1",
+    "requires_student_status": false,
+    "constraints": {
+      "german_level": "Unknown",
+      "relocation_ok": true,
+      "strict_language_blocker": true,
+      "blocker_caps": {
+        "hard": 35,
+        "soft": 55
+      }
+    }
+  }
+}

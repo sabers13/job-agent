@@ -1,0 +1,12 @@
+[
+  {
+    "slug": "data-analyst-berlin",
+    "seed_url": "https://www.stepstone.de/work-and-location/berlin/data-analyst",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 30,
+    "max_jobs": null,
+    "include_titles_any": ["junior", "werkstudent"],
+    "exclude_titles_any": ["senior", "lead"]
+  }
+]

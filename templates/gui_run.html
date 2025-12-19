@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Job Agent – Run</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 1rem; }
+    label { display: block; margin-top: 0.5rem; font-weight: bold; }
+    input[type="text"] { width: 100%; box-sizing: border-box; }
+    select { width: 100%; box-sizing: border-box; }
+    #result { margin-top: 1rem; padding: 0.75rem; border: 1px solid #ccc; white-space: pre-wrap; }
+    nav button { margin-right: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Run job analysis</h1>
+
+  <nav style="margin-bottom: 1rem;">
+    <button type="button" id="tab-single">Single job</button>
+    <button type="button" id="tab-batch">Batch (Prefect)</button>
+  </nav>
+
+  <section id="single-section">
+    <h2>Single job (FastAPI)</h2>
+    <form id="single-form">
+      <label>Profile
+        <select id="profile-select"></select>
+      </label>
+
+      <label>Job URL
+        <input type="text" id="job-url" placeholder="https://..." required />
+      </label>
+
+      <label>
+        <input type="checkbox" id="enrich" checked />
+        Use LLM enrichment
+      </label>
+
+      <label>
+        <input type="checkbox" id="use-llm-scoring" checked />
+        Use LLM scoring (if enabled on server)
+      </label>
+
+      <label>
+        <input type="checkbox" id="apply-blocker-cap" checked />
+        Apply blocker cap (critical blockers cap score)
+      </label>
+
+      <!-- Optional cutoff date field can be added later -->
+      <!-- <label>Cutoff ISO (optional)
+        <input type="text" id="cutoff-iso" placeholder="2024-10-01T00:00:00Z" />
+      </label> -->
+
+      <button type="submit" style="margin-top: 0.75rem;">Analyze job</button>
+    </form>
+
+    <div id="status" style="margin-top: 0.5rem; color: #555;"></div>
+    <div id="result" style="display:none;"></div>
+  </section>
+
+  <section id="batch-section" style="display:none; margin-top:1rem;">
+    <h2>Batch run (Prefect)</h2>
+    <form id="batch-form">
+      <label>Profile
+        <select id="batch-profile-select"></select>
+      </label>
+
+      <label>Max age (days)
+        <input type="number" id="batch-max-age" value="4" />
+      </label>
+
+      <label>
+        <input type="checkbox" id="batch-use-enrich" checked />
+        Use LLM enrichment
+      </label>
+
+      <label>
+        <input type="checkbox" id="batch-use-llm-scoring" checked />
+        Use LLM scoring
+      </label>
+
+      <label>
+        <input type="checkbox" id="batch-apply-blocker-cap" checked />
+        Apply blocker cap (critical blockers cap score)
+      </label>
+
+      <button type="submit" style="margin-top:0.75rem;">Start batch run</button>
+    </form>
+
+    <div id="batch-status" style="margin-top:0.5rem; color:#555;"></div>
+    <div style="margin-top:0.5rem;">
+      <strong>Logs:</strong>
+      <pre id="batch-log" style="border:1px solid #ccc; padding:0.5rem; height:250px; overflow:auto;"></pre>
+    </div>
+  </section>
+
+  <script>
+    let currentBatchRunId = null;
+    let currentLogOffset = 0;
+    let statusTimerId = null;
+    let logTimerId = null;
+
+    async function loadProfilesCommon() {
+      const res = await fetch("/api/profiles");
+      const data = await res.json();
+      const profiles = data.profiles || [];
+
+      const singleSel = document.getElementById("profile-select");
+      const batchSel = document.getElementById("batch-profile-select");
+
+      function fillSelect(sel) {
+        sel.innerHTML = "";
+        if (profiles.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "No profiles defined – go to /gui/profiles first";
+          sel.appendChild(opt);
+          sel.disabled = true;
+          return;
+        }
+        sel.disabled = false;
+        profiles.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p.key;
+          opt.textContent = p.profile_name + " (" + p.key + ")";
+          sel.appendChild(opt);
+        });
+      }
+
+      fillSelect(singleSel);
+      fillSelect(batchSel);
+    }
+
+    // Tab switching
+    const singleSection = document.getElementById("single-section");
+    const batchSection = document.getElementById("batch-section");
+    document.getElementById("tab-single").onclick = () => {
+      singleSection.style.display = "block";
+      batchSection.style.display = "none";
+    };
+    document.getElementById("tab-batch").onclick = () => {
+      singleSection.style.display = "none";
+      batchSection.style.display = "block";
+    };
+
+    async function pollBatchStatus() {
+      if (!currentBatchRunId) return;
+      try {
+        const res = await fetch("/api/run_status/" + encodeURIComponent(currentBatchRunId));
+        if (!res.ok) {
+          document.getElementById("batch-status").textContent = "Error fetching status.";
+          return;
+        }
+        const data = await res.json();
+        const st = data.status;
+        let text = `run_id=${data.run_id} status=${st}`;
+        if (data.started_at) text += ` | started_at=${data.started_at}`;
+        if (data.finished_at) text += ` | finished_at=${data.finished_at}`;
+        if (data.error) text += ` | error=${data.error}`;
+        document.getElementById("batch-status").textContent = text;
+      } catch (err) {
+        document.getElementById("batch-status").textContent = "Status error: " + err;
+      }
+    }
+
+    async function pollBatchLogs() {
+      if (!currentBatchRunId) return;
+      const logEl = document.getElementById("batch-log");
+      try {
+        const url = `/api/run_logs/${encodeURIComponent(currentBatchRunId)}?offset=${currentLogOffset}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          logEl.textContent += `\n[Log error: HTTP ${res.status}]`;
+          return;
+        }
+        const data = await res.json();
+        if (data.chunk) {
+          logEl.textContent += data.chunk;
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+        currentLogOffset = data.next_offset;
+        if (data.finished) {
+          if (statusTimerId) {
+            clearInterval(statusTimerId);
+            statusTimerId = null;
+          }
+          if (logTimerId) {
+            clearInterval(logTimerId);
+            logTimerId = null;
+          }
+        }
+      } catch (err) {
+        logEl.textContent += `\n[Log error: ${err}]`;
+      }
+    }
+
+    function startBatchPollers() {
+      if (statusTimerId) clearInterval(statusTimerId);
+      if (logTimerId) clearInterval(logTimerId);
+      statusTimerId = setInterval(pollBatchStatus, 2000);
+      logTimerId = setInterval(pollBatchLogs, 1000);
+    }
+
+    function resetBatchView() {
+      currentBatchRunId = null;
+      currentLogOffset = 0;
+      document.getElementById("batch-log").textContent = "";
+      document.getElementById("batch-status").textContent = "";
+      if (statusTimerId) {
+        clearInterval(statusTimerId);
+        statusTimerId = null;
+      }
+      if (logTimerId) {
+        clearInterval(logTimerId);
+        logTimerId = null;
+      }
+    }
+
+    document.getElementById("single-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const profileKey = document.getElementById("profile-select").value;
+      const url = document.getElementById("job-url").value.trim();
+      const enrich = document.getElementById("enrich").checked;
+      const useLlmScoring = document.getElementById("use-llm-scoring").checked;
+      const applyBlockerCap = document.getElementById("apply-blocker-cap").checked;
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
+
+      if (!profileKey) {
+        alert("Please select a profile (create one in /gui/profiles if needed).");
+        return;
+      }
+      if (!url) {
+        alert("Please enter a job URL.");
+        return;
+      }
+
+      statusEl.textContent = "Running...";
+      resultEl.style.display = "none";
+      resultEl.textContent = "";
+
+      const body = {
+        profile_key: profileKey,
+        url: url,
+        enrich: enrich,
+        use_llm_scoring: useLlmScoring,
+        apply_blocker_cap: applyBlockerCap,
+        // cutoff_iso: document.getElementById("cutoff-iso").value.trim() || null
+      };
+
+      try {
+        const res = await fetch("/api/run_single", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          statusEl.textContent = "Error: " + res.status + " " + txt;
+          return;
+        }
+        const data = await res.json();
+        statusEl.textContent = "Done.";
+        resultEl.style.display = "block";
+        resultEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        statusEl.textContent = "Error: " + err;
+      }
+    };
+
+    document.getElementById("batch-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const profileKey = document.getElementById("batch-profile-select").value;
+      const maxAge = parseInt(document.getElementById("batch-max-age").value || "4", 10);
+      const useEnrich = document.getElementById("batch-use-enrich").checked;
+      const useLlmScoring = document.getElementById("batch-use-llm-scoring").checked;
+      const applyBlockerCap = document.getElementById("batch-apply-blocker-cap").checked;
+      const statusEl = document.getElementById("batch-status");
+      const logEl = document.getElementById("batch-log");
+
+      if (!profileKey) {
+        alert("Please select a profile.");
+        return;
+      }
+
+      resetBatchView();
+      statusEl.textContent = "Starting batch run...";
+      logEl.textContent = "";
+      try {
+        const body = {
+          profile_key: profileKey,
+          search: { max_age_days: maxAge },
+          use_llm_enrich: useEnrich,
+          use_llm_scoring: useLlmScoring,
+          apply_blocker_cap: applyBlockerCap
+        };
+        const res = await fetch("/api/start_batch_run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          statusEl.textContent = "Error: " + res.status + " " + txt;
+          return;
+        }
+        const data = await res.json();
+        currentBatchRunId = data.run_id;
+        currentLogOffset = 0;
+        statusEl.textContent = "Run started. run_id=" + data.run_id + " (status=" + data.status + ")";
+        startBatchPollers();
+      } catch (err) {
+        statusEl.textContent = "Error: " + err;
+      }
+    };
+
+    // Initial load
+    loadProfilesCommon();
+  </script>
+</body>
+</html>

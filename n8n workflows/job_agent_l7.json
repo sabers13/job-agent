@@ -1,0 +1,99 @@
+{
+  "name": "Job Agent · StepStone → Bundle",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "mode": "list",
+        "values": {
+          "string": [
+            {
+              "name": "url",
+              "value": "https://www.stepstone.de/jobs--Werkstudent-m-w-d-Business-Analyst-im-Strategy-Office-Muenchen-CHECK24--13187381-inline.html"
+            },
+            {
+              "name": "url",
+              "value": "https://www.stepstone.de/jobs--Junior-Data-Analyst-Berlin-ExampleCo--12345678-inline.html"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Job URLs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/job_details",
+        "sendBody": true,
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ { url: $json.url, enrich: true, score: true } }}"
+      },
+      "id": "3",
+      "name": "Fetch + Score Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5001/bundle",
+        "sendBody": true,
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ { job: $json.job, scoring: $json.scoring } }}"
+      },
+      "id": "4",
+      "name": "Generate Bundle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1060, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Job URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job URLs": {
+      "main": [
+        [
+          {
+            "node": "Fetch + Score Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch + Score Job": {
+      "main": [
+        [
+          {
+            "node": "Generate Bundle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Job Agent – Profiles</title>
+  <style>
+    body { font-family: sans-serif; display: flex; margin: 0; height: 100vh; }
+    #sidebar { width: 250px; border-right: 1px solid #ccc; padding: 1rem; box-sizing: border-box; }
+    #content { flex: 1; padding: 1rem; box-sizing: border-box; }
+    #profiles-list button { display: block; width: 100%; margin-bottom: 0.5rem; text-align: left; }
+    label { display: block; margin-top: 0.5rem; font-weight: bold; }
+    input[type="text"], textarea { width: 100%; box-sizing: border-box; }
+    .info-icon { margin-left: 0.35rem; color: #d17a00; cursor: pointer; font-weight: bold; }
+    .info-icon:hover { color: #a05c00; }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h3>Profiles</h3>
+    <div id="profiles-list"></div>
+    <button id="new-profile-btn">+ New profile</button>
+  </div>
+
+  <div id="content">
+    <h2 id="form-title">Profile editor</h2>
+    <form id="profile-form">
+      <label>Profile key (identifier)
+        <span class="info-icon" onclick="showInfo('profile-key')">!</span>
+        <input type="text" id="profile-key" required />
+      </label>
+
+      <label>Profile name
+        <span class="info-icon" onclick="showInfo('profile-name')">!</span>
+        <input type="text" id="profile-name" required />
+      </label>
+
+      <label>Description
+        <span class="info-icon" onclick="showInfo('description')">!</span>
+        <textarea id="profile-description" rows="2"></textarea>
+      </label>
+
+      <label>Search seeds (comma-separated StepStone URLs or keywords)
+        <span class="info-icon" onclick="showInfo('search-seeds')">!</span>
+        <textarea id="search-seeds" rows="2"></textarea>
+      </label>
+
+      <label>Target seniority
+        <span class="info-icon" onclick="showInfo('target-seniority')">!</span>
+        <input type="text" id="target-seniority" placeholder="junior" />
+      </label>
+
+      <label>Max allowed seniority
+        <span class="info-icon" onclick="showInfo('max-allowed-seniority')">!</span>
+        <input type="text" id="max-allowed-seniority" placeholder="mid" />
+      </label>
+
+      <label>Max required experience (years)
+        <span class="info-icon" onclick="showInfo('max-exp-years')">!</span>
+        <input type="number" id="max-exp-years" value="3" />
+      </label>
+
+      <label>Experience penalty strength (None → Strict) <span id="exp-penalty-display">1.0</span>
+        <span class="info-icon" onclick="showInfo('exp-penalty')">!</span>
+        <input type="range" min="0" max="3" step="0.1" id="exp-penalty" value="1.0" />
+      </label>
+
+      <label>Min German level
+        <span class="info-icon" onclick="showInfo('min-german')">!</span>
+        <input type="text" id="min-german" placeholder="B1" />
+      </label>
+
+      <label>
+        <input type="checkbox" id="requires-student" checked />
+        Requires student status
+        <span class="info-icon" onclick="showInfo('requires-student')">!</span>
+      </label>
+
+      <label>Core skills (comma-separated)
+        <span class="info-icon" onclick="showInfo('core-skills')">!</span>
+        <textarea id="core-skills" rows="2"></textarea>
+      </label>
+
+      <label>Nice-to-have skills (comma-separated)
+        <span class="info-icon" onclick="showInfo('nice-skills')">!</span>
+        <textarea id="nice-skills" rows="2"></textarea>
+      </label>
+
+      <label>Preferred titles (comma-separated)
+        <span class="info-icon" onclick="showInfo('pref-titles')">!</span>
+        <textarea id="pref-titles" rows="2"></textarea>
+      </label>
+
+      <label>Excluded titles (comma-separated)
+        <span class="info-icon" onclick="showInfo('excl-titles')">!</span>
+        <textarea id="excl-titles" rows="2"></textarea>
+      </label>
+
+      <label>Preferred locations (comma-separated)
+        <span class="info-icon" onclick="showInfo('pref-locs')">!</span>
+        <textarea id="pref-locs" rows="2"></textarea>
+      </label>
+
+      <label>Excluded locations (comma-separated)
+        <span class="info-icon" onclick="showInfo('excl-locs')">!</span>
+        <textarea id="excl-locs" rows="2"></textarea>
+      </label>
+
+      <div style="margin-top: 1rem;">
+        <button type="submit">Save profile</button>
+        <button type="button" id="delete-profile-btn" style="margin-left: 1rem;">Delete</button>
+      </div>
+      <div id="status" style="margin-top: 0.5rem; color: green;"></div>
+    </form>
+  </div>
+
+  <script>
+    const infoTexts = {
+      "profile-key": "Stable identifier for the profile (used in URLs and storage). Keep it short and URL-safe.",
+      "profile-name": "Human-friendly display name. Defaults to the key if left blank.",
+      "description": "Optional notes about what this profile targets. Saved with the profile.",
+      "search-seeds": "StepStone search seeds (URLs or keywords). If a value starts with http(s), it is used directly; otherwise it is turned into https://www.stepstone.de/jobs/<keyword>/",
+      "target-seniority": "Seniority level you most want to target (e.g., junior).",
+      "max-allowed-seniority": "Upper bound on acceptable seniority. Jobs above this are de-prioritized.",
+      "max-exp-years": "Maximum required years of experience before penalizing the job.",
+      "exp-penalty": "How hard to penalize jobs that exceed the max experience (0 = none, 3 = strict).",
+      "min-german": "Minimum acceptable German proficiency (e.g., B1).",
+      "requires-student": "If checked, favor roles that suit students/working-students.",
+      "core-skills": "Must-have skills (comma-separated).",
+      "nice-skills": "Bonus skills (comma-separated).",
+      "pref-titles": "Titles you want to see (comma-separated).",
+      "excl-titles": "Titles you want to avoid (comma-separated).",
+      "pref-locs": "Locations you want to target (comma-separated).",
+      "excl-locs": "Locations you want to avoid (comma-separated)."
+    };
+
+    function showInfo(key) {
+      const msg = infoTexts[key] || "No info available.";
+      alert(msg);
+    }
+
+    function updatePenaltyDisplay(val) {
+      document.getElementById("exp-penalty-display").textContent = Number(val).toFixed(1);
+    }
+
+    async function fetchProfiles() {
+      const res = await fetch("/api/profiles");
+      const data = await res.json();
+      return data.profiles || [];
+    }
+
+    async function loadProfileList() {
+      const listEl = document.getElementById("profiles-list");
+      listEl.innerHTML = "";
+      const profiles = await fetchProfiles();
+      profiles.forEach(p => {
+        const btn = document.createElement("button");
+        btn.textContent = p.profile_name + " (" + p.key + ")";
+        btn.onclick = () => loadProfile(p.key);
+        listEl.appendChild(btn);
+      });
+    }
+
+    async function loadProfile(key) {
+      const res = await fetch("/api/profile/" + encodeURIComponent(key));
+      if (!res.ok) {
+        alert("Failed to load profile: " + res.statusText);
+        return;
+      }
+      const p = await res.json();
+      document.getElementById("profile-key").value = key;
+      document.getElementById("profile-name").value = p.profile_name || "";
+      document.getElementById("profile-description").value = p.description || "";
+      document.getElementById("search-seeds").value = (p.search_seeds || []).join(", ");
+      document.getElementById("target-seniority").value = p.target_seniority || "";
+      document.getElementById("max-allowed-seniority").value = p.max_allowed_seniority || "";
+      document.getElementById("max-exp-years").value = p.max_required_experience_years ?? "";
+      const penaltyVal = p.experience_penalty_strength ?? 1.0;
+      document.getElementById("exp-penalty").value = penaltyVal;
+      updatePenaltyDisplay(penaltyVal);
+      document.getElementById("min-german").value = p.min_german_level || "";
+      document.getElementById("requires-student").checked = !!p.requires_student_status;
+
+      document.getElementById("core-skills").value = (p.core_skills || []).join(", ");
+      document.getElementById("nice-skills").value = (p.nice_to_have_skills || []).join(", ");
+      document.getElementById("pref-titles").value = (p.preferred_titles || []).join(", ");
+      document.getElementById("excl-titles").value = (p.excluded_titles || []).join(", ");
+      document.getElementById("pref-locs").value = (p.preferred_locations || []).join(", ");
+      document.getElementById("excl-locs").value = (p.excluded_locations || []).join(", ");
+      document.getElementById("status").textContent = "";
+    }
+
+    document.getElementById("new-profile-btn").onclick = () => {
+      document.getElementById("profile-form").reset();
+      document.getElementById("profile-key").value = "";
+      document.getElementById("status").textContent = "";
+      const resetPenalty = document.getElementById("exp-penalty").value || 1.0;
+      updatePenaltyDisplay(resetPenalty);
+    };
+
+    document.getElementById("profile-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const key = document.getElementById("profile-key").value.trim();
+      if (!key) {
+        alert("Profile key is required.");
+        return;
+      }
+      const body = {
+        profile_name: document.getElementById("profile-name").value.trim() || key,
+        description: document.getElementById("profile-description").value.trim() || null,
+        target_seniority: document.getElementById("target-seniority").value.trim() || "junior",
+        max_allowed_seniority: document.getElementById("max-allowed-seniority").value.trim() || "mid",
+        max_required_experience_years: parseInt(document.getElementById("max-exp-years").value || "3", 10),
+        experience_penalty_strength: parseFloat(document.getElementById("exp-penalty").value || "1.0"),
+        min_german_level: document.getElementById("min-german").value.trim() || "B1",
+        requires_student_status: document.getElementById("requires-student").checked,
+        search_seeds: document.getElementById("search-seeds").value.split(",").map(s => s.trim()).filter(Boolean),
+        core_skills: document.getElementById("core-skills").value.split(",").map(s => s.trim()).filter(Boolean),
+        nice_to_have_skills: document.getElementById("nice-skills").value.split(",").map(s => s.trim()).filter(Boolean),
+        preferred_titles: document.getElementById("pref-titles").value.split(",").map(s => s.trim()).filter(Boolean),
+        excluded_titles: document.getElementById("excl-titles").value.split(",").map(s => s.trim()).filter(Boolean),
+        preferred_locations: document.getElementById("pref-locs").value.split(",").map(s => s.trim()).filter(Boolean),
+        excluded_locations: document.getElementById("excl-locs").value.split(",").map(s => s.trim()).filter(Boolean)
+      };
+
+      const res = await fetch("/api/profile/" + encodeURIComponent(key), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        alert("Failed to save profile: " + res.statusText);
+        return;
+      }
+
+      document.getElementById("status").textContent = "Saved.";
+      await loadProfileList();
+    };
+
+    document.getElementById("exp-penalty").oninput = (e) => updatePenaltyDisplay(e.target.value);
+
+    document.getElementById("delete-profile-btn").onclick = async () => {
+      const key = document.getElementById("profile-key").value.trim();
+      if (!key) {
+        alert("No profile selected.");
+        return;
+      }
+      if (!confirm("Delete profile '" + key + "'?")) return;
+      const res = await fetch("/api/profile/" + encodeURIComponent(key), { method: "DELETE" });
+      if (!res.ok) {
+        alert("Failed to delete profile.");
+        return;
+      }
+      document.getElementById("profile-form").reset();
+      document.getElementById("status").textContent = "Deleted.";
+      await loadProfileList();
+    };
+
+    // Initial load
+    loadProfileList();
+    updatePenaltyDisplay(document.getElementById("exp-penalty").value);
+  </script>
+</body>
+</html>

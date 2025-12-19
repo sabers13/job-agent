@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CV – Saber Sojudi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --page-width: 900px;
+      --sidebar-width: 180px;
+      --body-font: "Inter", "Segoe UI", Calibri, sans-serif; /* updated */
+      --text-color: #222;
+      --muted: #555;
+    }
+    * { box-sizing: border-box; }
+
+    body {
+      background: #fff;
+      display: block;             /* remove flex completely */
+      font-family: var(--body-font);
+      font-size: 13px;
+      color: var(--text-color);
+      margin: 0;
+      padding: 0;
+    }
+
+    .page {
+      background: #fff;
+      width: var(--page-width);
+      margin: 20px auto 60px auto; /* ⬅️ bottom margin visible in PDF */
+      box-shadow: 0 0 12px rgba(0,0,0,0.06);
+      padding: 28px 32px 60px 32px; /* ⬅️ ensures text doesn't touch bottom */
+    }
+
+    /* Header */
+    .header {
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+      margin-bottom: 18px;
+    }
+    .name {     font-family: "Inter", sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 0.5px; }
+    .title-line { margin-top: 4px; font-weight: 500; }
+    .availability { margin-top: 2px; font-size: 13px; color: var(--muted); }
+    .contact { margin-top: 8px; font-size: 13px; line-height: 1.4; }
+    .contact a { color: #004b9a; text-decoration: none; }
+
+    /* Layout */
+    .content {
+      display: flex;
+      margin-top: 16px;
+    }
+    .main {
+      width: calc(100% - 210px - 24px);
+      margin-right: 24px;
+      min-width: 0;
+    }
+    .sidebar {
+      width: 210px;
+      flex: 0 0 210px;
+    }
+
+    /* Headings */
+    h2.section-title {
+      color: #3a87d6;
+      font-size: 16px;
+      margin: 18px 0 8px 0;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #3a87d6;
+      padding-bottom: 3px;
+    }
+    h3.item-title {
+      margin: 14px 0 4px 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .degree-title {
+  font-style: italic;
+  font-weight: 300;     /* lighter weight for Inter */
+  font-stretch: 90%;    /* slightly narrower */
+  letter-spacing: -0.3px;
+  color: #333;          /* softer contrast than black */
+}
+
+    .subline { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+
+    /* Lists */
+    ul { margin: 0 0 6px 17px; padding: 0; }
+    ul li { margin-bottom: 3px; font-size: 13px; line-height: 1.35; }
+
+    /* Sidebar */
+    .side-block { margin-bottom: 14px; }
+    .side-title {
+      color: #3a87d6;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 12px;
+      border-bottom: 1px solid #3a87d6;
+      margin-bottom: 4px;
+      padding-bottom: 2px;
+    }
+    .side-block p,
+    .side-block li { font-size: 12.5px; line-height: 1.3; }
+
+    /* Page margin for wkhtmltopdf */
+    @page {
+      margin-top: 10mm;
+      margin-bottom: 25mm; /* ⬅️ actual bottom margin in PDF */
+      margin-left: 10mm;
+      margin-right: 10mm;
+    }
+
+    @media print {
+      body { background: white; box-shadow: none; }
+      .page { box-shadow: none; }
+    }
+    .profile-pic {
+      position: absolute;
+      top: 0px;
+      right: 32px;
+      width: 180px;           /* same width as sidebar */
+      height: 160px;           /* keeps natural rectangular ratio */
+      border-radius: 0;       /* removes circle shape */
+      object-fit: contain;    /* show full image without cropping */
+    }
+
+    .header {
+      position: relative;
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+      margin-bottom: 18px;
+      min-height: 160px; /* ensures enough space for the rectangle image */
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <!-- HEADER -->
+    <header class="header">
+      <img src="https://raw.githubusercontent.com/sabers13/sabers13.github.io/refs/heads/main/assets/cv_Pic.jpg" alt="Saber Sojudi" class="profile-pic">
+      <div class="name">Saber Sojudi</div>
+      <div class="title-line">Data / BI / Backend Developer — Python, SQL, Power BI</div>
+      <div class="availability">Open to Full-time • Part-time • B2B • Working Student</div>
+      <div class="contact">
+        Dortmund, Germany<br/>
+        Email: <a href="mailto:contact@sabersojudi.com">contact@sabersojudi.com</a><br/>
+        Phone number: +49 15755786918 |
+        <a href="https://github.com/sabers13">GitHub Profile</a> |
+        <a href="https://www.linkedin.com/in/saber-sojudi-abdee-fard-661580244/">LinkedIn Profile</a><br/>
+        Explore all projects and dashboards: <a href="http://sabersojudi.com/">sabersojudi.com</a>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div class="content">
+      <!-- MAIN COLUMN -->
+      <main class="main">
+        <!-- EDUCATION -->
+        <section id="education">
+          <h2 class="section-title">Education (Bildung)</h2>
+
+          <div class="exp-item">
+            <h3 class="item-title"><strong>TU Dortmund University,</strong>
+                          <em class="degree-title">&nbsp;—&nbsp;
+                          MSc Data Science</em></h3>
+            <p style="margin: 2px 0 10px 0;">
+              <strong>Dortmund , Germany</strong><br>
+              <div class="subline">April 2025 (in progress)</div>
+            </p>
+            <ul>
+              <li>
+                Developing <strong>end-to-end data pipelines</strong> in Python and SQL for data
+                collection, cleaning, and transformation.
+              </li>
+              <li>
+                Applying <strong>machine-learning models</strong> (regression, classification, clustering,
+                neural networks) to real-world datasets.
+              </li>
+              <li>
+                Writing <strong>production-style, modular Python code</strong> with version control (Git)
+                and clear documentation.
+              </li>
+              <li>
+                Using <strong>NumPy, Pandas, and Scikit-learn</strong> for exploratory data analysis and
+                feature engineering.
+              </li>
+              </ul>
+          </div>
+
+          <div class="exp-item">
+            <h3 class="item-title"><strong>University of Guilan,</strong>
+                          <em class="degree-title">&nbsp;—&nbsp;
+                          BSc Computer Engineering</em></h3>
+            <p style="margin: 2px 0 10px 0;">
+              <strong>Rasht, Iran</strong><br>
+              <div class="subline">September 2020 – June 2024</div>
+            </p>
+            <ul>
+              <li>Built a strong foundation in <strong>data structures, algorithms, and database systems.</strong></li>
+              <li>Developed <strong>Python, Java, and SQL</strong> projects involving data processing and backend logic.</li>
+              <li>Applied <strong>algorithmic problem-solving</strong> and optimization methods in coursework and projects.</li>
+              </ul>
+          </div>
+
+
+
+        </section>
+
+        <!-- PROJECTS -->
+        <section id="projects">
+          <h2 class="section-title">Projects (Projekte)</h2>
+
+          <div class="project">
+            <h3 class="item-title"><a href="https://github.com/sabers13/bachelor-projects/tree/main/semester%207/Library%20Management%20System">Library Management System (Python, SQL Server)</a></h3>
+            <ul>
+              <li>Developed a <strong>role-based library platform</strong> handling book circulation, user accounts, and membership tracking.</li>
+              <li>Implemented <strong>CRUD operations and relational schema design</strong> with foreign key constraints and triggers.</li>
+              <li>Created <strong>authentication and admin dashboards</strong> to manage user privileges and borrowing history.</li>
+              <li>Connected Python application to <strong>Microsoft SQL Server</strong> using ODBC; optimized queries for reliability.</li>
+              <li>Practiced <strong>modular programming</strong>, <strong>database normalization</strong>, and <strong>data integrity enforcement</strong>.</li>
+            </ul>
+          </div>
+
+          <div class="project">
+            <h3 class="item-title"><a href="https://github.com/sabers13/Eurostat-HICP">Eurostat HICP Dashboard (Power BI, SQL, DAX)</a></h3>
+            <ul>
+              <li>Designed an <strong>interactive EU inflation dashboard</strong> integrating HICP data from Eurostat (27 countries, 10 years).</li>
+              <li>Developed <strong>DAX measures</strong> for YoY, MoM, and weighted inflation trends with dynamic filters and hierarchies.</li>
+              <li>Automated <strong>data import and cleaning</strong> via Power Query, improving refresh efficiency and consistency.</li>
+              <li>Delivered <strong>actionable business insights</strong> through KPI visuals and drill-through interactivity.</li>
+            </ul>
+          </div>
+          <div class="project">
+          <h3 class="item-title"><a href="https://github.com/sabers13/agentic-ai-content-workflow-engine">Agentic AI Content Workflow Engine (Python, Prefect, LLMs)</a></h3>
+          <ul>
+          <li>End‑to‑end automation that turns a short brief into a <strong>WordPress‑ready</strong>, optimized article via chained agents.</li>
+          <li><strong>Content Brain</strong> → structured draft; <strong>Quality Agent</strong> → readability/coverage checks; <strong>Publisher</strong> → Markdown→HTML cleanup + posting.</li>
+          <li>Orchestrated with <strong>Prefect</strong>; tracked runs and metrics; reproducible outputs and logs.</li>
+          <li>Includes <strong>SEO optimizer</strong>, consistent headings, and auto‑generated <strong>Table of Contents</strong>.</li>
+          <li>Published endpoint: <a href="https://sabersojudi.wordpress.com/">sabersojudi.wordpress.com</a></li>
+          </ul>
+          </div>
+          <div class="project">
+          <h3 class="item-title"><a href="https://github.com/sabers13/sabers13.github.io">Portfolio Website, sabersojudi.com (HTML, CSS, JS)</a></h3>
+          <ul>
+          <li>Built a <strong>responsive, multi‑page personal portfolio</strong> hosted on <strong>GitHub Pages</strong> at <strong>sabersojudi.com</strong>.</li>
+          <li>Showcases <strong>projects, dashboards, and CV</strong> with clear navigation and recruiter‑friendly layout.</li>
+          <li>Integrated <strong>semantic HTML</strong> and modular CSS with lightweight JavaScript for interactivity and smooth UX.</li>
+          <li>Emphasized <strong>performance, accessibility, and clean structure</strong> for reliable rendering across devices.</li>
+          <li>Version‑controlled development with <strong>Git/GitHub</strong>, enabling iterative improvements and easy deployment.</li>
+          </ul>
+          </div>
+          <div class="project">
+            <h3 class="item-title"><a href="https://github.com/sabers13/Parameter-Estimation-of-Black-Hole-Binary-Waveforms-using-BayesFlow">BayesFlow, Gravitational Wave Inference (Python, TensorFlow)</a></h3>
+            <ul>
+              <li>Generated and preprocessed <strong>24,000+ gravitational-wave signals</strong>, ensuring balanced datasets and scaling consistency.</li>
+              <li>Implemented <strong>probabilistic neural networks</strong> for posterior estimation, focusing on calibration and model validation.</li>
+              <li>Utilized <strong>TensorFlow, NumPy, and Matplotlib</strong> to train, analyze, and visualize results on GPU-accelerated environments.</li>
+              <li>Emphasized <strong>reproducibility and efficient data handling</strong>, suitable for large-scale ML pipelines.</li>
+            </ul>
+          </div>
+
+          <div class="project">
+            <h3 class="item-title"><a href="https://github.com/sabers13/bachelor-projects/tree/main/semester%205/Hex%20Game%20with%20AI(Alpha-Beta%20Pruning)">Hex Game AI (Python, pygame, AI)</a></h3>
+            <ul>
+              <li>Implemented the <strong>Hex board game</strong> with both human and AI opponents using <strong>Minimax search with Alpha-Beta pruning</strong>.</li>
+              <li>Designed a <strong>heuristic evaluation function</strong> for move scoring based on proximity and connectivity.</li>
+              <li>Built a <strong>pygame GUI</strong> to visualize moves and AI decision-making in real-time.</li>
+              <li>Demonstrated strong <strong>algorithmic reasoning and game-theory application</strong> in software logic.</li>
+            </ul>
+          </div>
+          <div class="project">
+<h3 class="item-title"><a href="https://github.com/sabers13/bachelor-projects/tree/main/avr">AVR</a> and <a href="https://github.com/sabers13/bachelor-projects/tree/main/vhdl">VHDL</a> Hardware Projects (C, VHDL, Digital Design)</h3>
+<ul>
+<li>Developed and tested multiple <strong>AVR microcontroller</strong> projects, programming in <strong>C</strong> and debugging on real hardware.</li>
+<li>Implemented several <strong>VHDL</strong> designs and verified behavior using simulation and testbenches.</li>
+<li>Gained hands-on experience with timing, state machines, interrupts, and IO interfacing, which transfers directly to understanding and characterizing SoC and UWB application behavior.</li>
+</ul>
+</div>
+<div class="project">
+<h3 class="item-title"><a href="https://github.com/sabers13/agentic-ai-content-workflow-engine">Agentic AI Content Workflow Engine (Python, Prefect, LLMs)</a></h3>
+<ul>
+<li>Designed end-to-end automated pipelines that transform briefs into production-ready content, orchestrated with <strong>Prefect</strong> for reliable runs, monitoring, and retries.</li>
+<li>Decomposed tasks into chained agents and tracked run metadata and logs to ensure traceability and reproducible outputs.</li>
+<li>Built components for automated quality checks, normalization, and post-processing—experience applicable to automated data collection and characterization pipelines.</li>
+</ul>
+</div>
+          
+
+          <div class="project">
+            <h3 class="item-title"><a href="https://github.com/sabers13/bachelor-projects">Additional Technical Projects</a></h3>
+            <ul>
+              <li><strong>7-bit CPU Design</strong>: Designed a simple CPU using <strong>VHDL</strong> for architecture and <strong>Python</strong> for simulation and verification.</li>
+              <li><strong>Compiler Parser</strong>: Built a <strong>Java-based parser</strong> using <strong>JFlex</strong> and grammar rules for tokenization and syntax analysis.</li>
+              <li><strong>Mini Python Projects (6 total)</strong>: Implemented automation, data processing, and algorithmic problem-solving exercises.</li>
+              <li><strong>Java Management Systems (7 total)</strong>: Developed desktop applications with <strong>data I/O</strong>, file handling, and GUI elements.</li>
+              <li><strong>2D Fighter Game</strong>: Real-time <strong>Java OOP</strong> game demonstrating <strong>game-loop</strong> and collision mechanics.</li>
+              <li><strong>C++ Mini Projects (12 total)</strong>: Practiced structured programming, algorithm implementation, and memory management.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- EXPERIENCE -->
+        <section id="experience">
+          <h2 class="section-title">Experience (Erfahrung)</h2>
+
+          <div class="exp-item">
+            <h3 class="item-title"><strong>Start Up Founder — Euro Shop (Retail / E-commerce)</strong></h3>
+            <p style="margin: 2px 0 10px 0;">
+              <strong>Rasht, Iran</strong><br>
+              <div class="subline">February 2023 – March 2025</div>
+            </p>
+            <ul>
+              <li>Managed daily operations, inventory, and customer relationships, developing strong organizational and communication skills.</li>
+              <li>Handled accounting and digital record-keeping using Excel and POS systems.</li>
+              <li>Gained practical understanding of <strong>data tracking</strong>, <strong>small-scale business analytics</strong>, and <strong>customer behavior patterns</strong>.</li>
+              <li>Strengthened <strong>problem-solving and responsibility skills</strong> through self-employment.</li>
+            </ul>
+          </div>
+
+          <div class="exp-item">
+            <h3 class="item-title"><strong>IT Technician — Canon Persia</strong></h3>
+            <p style="margin: 2px 0 10px 0;">
+              <strong>Rasht, Iran</strong><br>
+              <div class="subline">July 2014 – July 2020</div>
+            </p>
+            <ul>
+              <li>Diagnosed and repaired <strong>hardware and software issues</strong> for computers, printers, and office devices.</li>
+              <li>Installed and configured <strong>Windows operating systems</strong>, drivers, and network components for clients.</li>
+              <li>Managed <strong>data backups, virus removal, and system optimization</strong> to maintain reliable performance.</li>
+              <li>Worked extensively with <strong>Microsoft Office</strong>, <strong>Photoshop</strong>, and other common productivity tools for documentation and reporting.</li>
+              <li>Provided <strong>technical support and troubleshooting assistance</strong> to individual and corporate customers.</li>
+              <li>Developed strong <strong>problem-solving, communication, and time-management skills</strong> through direct client interaction.</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="side-block">
+          <div class="side-title">Job Related Abilities (Berufliche Fähigkeiten)</div>
+          <p><strong>Analytical &amp; Problem-Solving</strong></p>
+          <ul>
+            <li>Strong ability to analyze datasets, debug complex code, and identify performance bottlenecks.</li>
+            <li>Skilled in structuring data workflows and implementing efficient logic for data transformation and storage.</li>
+            <li>Experienced in testing, troubleshooting, and optimizing ML pipelines, algorithms, and backend processes.</li>
+          </ul>
+          <p><strong>Technical Knowhow</strong></p>
+          <ul>
+            <li>5+ years of hands-on experience in <strong>Python, SQL, Java, and C++</strong>.</li>
+            <li>Designed and implemented <strong>relational databases</strong> (SQL Server, SQLite) integrated with Python apps.</li>
+            <li>Developed <strong>interactive dashboards and data visualizations</strong> using Power BI and Matplotlib to support decision making.</li>
+            <li>Experienced in <strong>TensorFlow, scipy, matlibplot, Power BI, Pandas, and NumPy</strong> for data analysis and visualization.</li>
+            <li>Hands-on experience with <strong>Windows environments, Microsoft Office, Excel, and Photoshop</strong> for technical documentation and reporting.</li>
+            <li>Agentic content pipeline with <strong>Prefect</strong> (flows, tasks, logging)</li>
+          </ul>
+          <p><strong>Collaboration &amp; Communication</strong></p>
+          <ul>
+            <li>Strong interpersonal and communication skills developed through customer-facing roles and technical teamwork.</li>
+            <li>Explaining technical concepts to technical and non-technical audiences.</li>
+            <li>Worked in Git/GitHub and Agile workflows.</li>
+          </ul>
+          <p><strong>Innovation &amp; Ownership Mindset</strong></p>
+          <ul>
+            <li>Proven ability to plan, manage, and deliver independent projects and small-scale business operations.</li>
+            <li>Demonstrated entrepreneurial mindset, adaptability, and accountability through self-employment.</li>
+            <li>Continuously learning and applying new tools to improve efficiency and technical skillset.</li>
+          </ul>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Technical Proficiency (Technische Kenntnisse)</div>
+          <ul>
+            <li>Programming:<strong> Python, SQL</strong>, Java, C++, VHDL, Prefect</li>
+            <li>Frameworks &amp; Tools: TensorFlow, <strong>Power BI</strong>, Pandas, NumPy, Matplotlib, scipy, n8n</li>
+            <li>Databases: <strong>SQL Server, SQLite</strong></li>
+            <li>Web: HTML, CSS, JavaScript, WordPress</li>
+            <li>Software &amp; OS: Windows, Linux, Microsoft Office, Photoshop</li>
+            <li>Version Control: Git, GitHub</li>
+          </ul>
+        </div>
+                <div class="side-block">
+          <div class="side-title">Courses &amp; Certificates (Kurse &amp; Zertifikate)</div>
+            <ul>
+              <li><a href="https://www.coursera.org/account/accomplishments/verify/SW2XLK8SWUZN?utm_source=ios&utm_medium=certificate&utm_content=cert_image&utm_campaign=sharing_cta&utm_product=course"><strong>Google Data Analytics (Coursera)</strong></a><strong> — Foundations: Data, Data, Everywhere</strong><br/>
+                <div class="subline">December 2023</div>
+                <span class="muted">Covered data lifecycle, analytical thinking, and business decision support.</span>
+              </li>
+              <li><a href="https://www.coursera.org/account/accomplishments/verify/2MCKM8EQ4JGA?utm_source=ios&utm_medium=certificate&utm_content=cert_image&utm_campaign=sharing_cta&utm_product=course"><strong>Google Data Analytics (Coursera)</strong></a><strong> — Ask Questions to Make Data-Driven Decisions</strong><br/>
+                <div class="subline">December 2023</div>
+                <span class="muted">Focused on problem-solving frameworks, stakeholder analysis, and SQL/Excel integration.</span>
+              </li>
+              <li><a href="https://www.coursera.org/account/accomplishments/verify/XFVAYAKUDVXD?utm_source=ios&utm_medium=certificate&utm_content=cert_image&utm_campaign=sharing_cta&utm_product=course"><strong>University of Michigan</strong></a><strong> — Python for Everybody: Programming for Everybody</strong></li>
+              <div class="subline">August 2022</div>
+              <li><a href="https://www.coursera.org/account/accomplishments/verify/8R6MLHAKW8ML?utm_source=ios&utm_medium=certificate&utm_content=cert_image&utm_campaign=sharing_cta&utm_product=course"><strong>University of Michigan</strong></a><strong> — Python for Everybody: Python Data Structures</strong></li>
+              <div class="subline">September 2022</div>
+            </ul>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Leadership (Führung)</div>
+          <ul>
+            <li>Led small development teams in data and software projects.</li>
+            <li>Mentored peers on debugging, documentation, and project structure.</li>
+            <li>Managed day-to-day operations as an independent business owner, coordinating suppliers and clients.</li>
+          </ul>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Public Speaking &amp; Presenting (Öffentliches Sprechen)</div>
+          <ul>
+            <li>Delivered presentations on project outcomes and analytical results.</li>
+            <li>Comfortable presenting to technical and non-technical audiences in English.</li>
+          </ul>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Languages (Sprachen)</div>
+          <ul>
+            <li><strong>English</strong> – C1 (Near native)
+                            <div class="subline">TOEFL iBT 100 - IELTS 7</div>
+                            </li>
+            <li><strong>German</strong> – A2 (in progress)</li>
+            <li><strong>Persian</strong> – Native</li>
+          </ul>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">References (Referenzen)</div>
+          <ul>
+            <li><strong>Dr. Javad Zarbakhsh</strong> — CEO &amp; Professor, Cademix Institute of Technology, Tel: +43 650 967 7080 Email: president@cademix.org</li>
+            <li><strong>Dr. Farid Feizi</strong> — Associate Professor, feizi@guilan.ac.ir</li>
+            <li><strong>Dr. Hamidreza Ahmadifar</strong> — Associate Professor, ahmadifar@guilan.ac.ir</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- spacer ensures visible bottom margin in PDF -->
+  <div style="height:80px;"></div>
+</body>
+</html>
