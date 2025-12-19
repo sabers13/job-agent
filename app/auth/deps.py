@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.security import decode_token
 from app.db.session import db_session
 from app.db.crud_users import get_user_by_id
@@ -12,12 +13,25 @@ from app.db.crud_users import get_user_by_id
 bearer = HTTPBearer(auto_error=False)
 
 
-def get_current_user(creds: HTTPAuthorizationCredentials | None = Depends(bearer)):
-    if creds is None or not creds.credentials:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
+def get_current_user(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+):
+    token: str | None = None
+
+    # 1) API clients
+    if creds is not None and creds.credentials:
+        token = creds.credentials
+
+    # 2) Browser clients
+    if token is None:
+        token = request.cookies.get(AUTH_COOKIE_NAME)
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
 
     try:
-        payload = decode_token(creds.credentials)
+        payload = decode_token(token)
         sub = payload.get("sub")
         if not sub:
             raise HTTPException(status_code=401, detail="Token missing subject")
