@@ -7,6 +7,7 @@ from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.deps import get_current_user
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.config.settings import settings
+from app.db.crud_profiles import seed_default_profiles_for_user
 from app.db.crud_users import create_user, get_user_by_email, get_user_by_id
 from app.db.models import User
 from app.db.session import db_session
@@ -22,6 +23,8 @@ def signup(req: SignupRequest):
             raise HTTPException(status_code=409, detail="Email already registered")
 
         user = create_user(db, email=req.email, password_hash=hash_password(req.password))
+        db.flush()
+        seed_default_profiles_for_user(db, user.id)
         db.commit()
         return SignupResponse(id=str(user.id), email=user.email)
 

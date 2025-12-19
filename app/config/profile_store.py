@@ -57,3 +57,37 @@ def delete_profile(key: str) -> None:
     if key in profiles:
         del profiles[key]
         save_profiles(profiles)
+
+
+def get_default_profiles_dict() -> Dict[str, Dict[str, Any]]:
+    """
+    Return built-in default profiles for seeding new users.
+    These are templates only; they are not written to disk here.
+    """
+    return {
+        "junior_data_bi": {
+            "profile_name": "Junior Data/BI",
+            "description": "General junior data/BI focus profile",
+            "search_seeds": [],
+            "target_seniority": "junior",
+            "max_allowed_seniority": "mid",
+            "max_required_experience_years": 3,
+            "experience_penalty_strength": 1.0,
+            "core_skills": ["Python", "SQL"],
+            "nice_to_have_skills": ["Power BI", "DAX", "Power Query", "Pandas", "NumPy"],
+            "preferred_titles": [
+                "Junior Data Analyst",
+                "Junior BI Analyst",
+                "Junior BI Developer",
+                "Analytics Engineer",
+                "Python Developer",
+                "Working Student Data",
+                "Data/BI Intern",
+            ],
+            "excluded_titles": ["Senior", "Lead", "Principal", "Head", "Manager"],
+            "preferred_locations": ["Deutschland", "NRW", "Dortmund", "Cologne", "Düsseldorf", "Essen"],
+            "excluded_locations": [],
+            "min_german_level": "B1",
+            "requires_student_status": True,
+        }
+    }
