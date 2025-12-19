@@ -388,7 +388,8 @@ def gui_profiles(request: Request):
         if e.status_code == status.HTTP_401_UNAUTHORIZED:
             return RedirectResponse(url="/gui/login", status_code=303)
         raise
-    return templates.TemplateResponse("gui_profiles.html", {"request": request, "user": user})
+    user_ctx = {"id": str(user.id), "email": user.email}
+    return templates.TemplateResponse("gui_profiles.html", {"request": request, "user": user_ctx})
 
 
 # ---------- Run single job ----------
@@ -652,7 +653,8 @@ def gui_run(request: Request):
         if e.status_code == status.HTTP_401_UNAUTHORIZED:
             return RedirectResponse(url="/gui/login", status_code=303)
         raise
-    return templates.TemplateResponse("gui_run.html", {"request": request, "user": user})
+    user_ctx = {"id": str(user.id), "email": user.email}
+    return templates.TemplateResponse("gui_run.html", {"request": request, "user": user_ctx})
 
 
 # -------------------------
