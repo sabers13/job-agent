@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-import os
-import subprocess
 import json
+import os
 import re
+import subprocess
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 from pydantic import BaseModel
-from starlette.concurrency import run_in_threadpool
 
 from app.config.settings import settings
 from app.config import profile_store
@@ -34,6 +34,7 @@ from app.api.schemas import (
     ScoringResult,
     UnifiedJobPostingOut,
 )
+from app.db.health import check_db
 from .pipeline.templating import generate_bundle
 from .pipeline.output import write_bundle, write_summary
 from .pipeline.models import UnifiedJobPosting, FocusProfileModel
@@ -70,6 +71,12 @@ class Health(BaseModel):
 @app.get("/health", response_model=Health)
 async def health():
     return Health(ok=True, use_playwright=use_playwright_default, headless=headless_mode, message="ready")
+
+
+@app.get("/health/db")
+async def health_db():
+    ok = await run_in_threadpool(check_db)
+    return {"ok": bool(ok)}
 
 
 @app.get("/playwright_check")

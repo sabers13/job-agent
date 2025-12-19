@@ -4,6 +4,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+
 
 def _env(*names: str, default: str | None = None) -> str | None:
     for name in names:
@@ -128,6 +135,13 @@ class Settings:
     cache_ttl_days: int = _env_int("JOBAGENT_CACHE_TTL_DAYS", default=7)
     cache_version: str = _env("JOBAGENT_CACHE_VERSION", default="v2") or "v2"
     cache_per_profile: bool = _env_bool("JOBAGENT_CACHE_PER_PROFILE", default=True)
+
+    # Database (Azure SQL)
+    database_url: str | None = _env("JOBAGENT_DATABASE_URL", default=None)
+    database_migrator_url: str | None = _env("JOBAGENT_DATABASE_MIGRATOR_URL", default=None)
+    db_echo: bool = _env_bool("JOBAGENT_DB_ECHO", default=False)
+    db_pool_size: int = _env_int("JOBAGENT_DB_POOL_SIZE", default=5)
+    db_max_overflow: int = _env_int("JOBAGENT_DB_MAX_OVERFLOW", default=10)
 
     # Paths
     output_dir: Path = Path(os.getenv("JOBAGENT_OUTPUT_DIR", "output"))
