@@ -14,3 +14,6 @@ aiofiles==24.1.*
 openai==1.51.*          # for GPT-4o/mini later
 prefect==3.1.*
 pytest==8.3.*
+SQLAlchemy>=2.0
+alembic>=1.12
+pyodbc>=5.0

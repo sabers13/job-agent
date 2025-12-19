@@ -16,3 +16,6 @@ output/
 
 # Playwright
 .playwright/
+
+.env
+.env.*
