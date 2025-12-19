@@ -8,9 +8,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from app.config.settings import settings
 from app.config import profile_store
 from app.config.focus import DEFAULT_FOCUS, get_focus_config
 from app.gui_runs import run_manager
+from app.auth.deps import get_current_user
 from app.api.schemas import (
     AggregateReportRequest,
     BundleRequest,
@@ -360,9 +361,34 @@ def delete_profile_api(key: str):
     return {"ok": True}
 
 
+@app.get("/gui/login", response_class=HTMLResponse)
+def gui_login_placeholder():
+    html = """
+    <html><body style="font-family:system-ui;max-width:720px;margin:40px auto;padding:0 16px">
+      <h2>Login required</h2>
+      <p>You are not logged in. This endpoint is a placeholder for now.</p>
+      <p>Next step (G2.2) will add the real login page integrated with /auth/login (cookie session).</p>
+      <p>Temporary option: use the API to login and set cookie:</p>
+      <pre>
+curl -i -c cookies.txt -X POST http://127.0.0.1:8000/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD"}'
+      </pre>
+      <p>Then open <a href="/gui/run">/gui/run</a> in the same browser session after you implement G2.2.</p>
+    </body></html>
+    """
+    return HTMLResponse(content=html, status_code=200)
+
+
 @app.get("/gui/profiles", response_class=HTMLResponse)
 def gui_profiles(request: Request):
-    return templates.TemplateResponse("gui_profiles.html", {"request": request})
+    try:
+        user = get_current_user(request, None)
+    except HTTPException as e:
+        if e.status_code == status.HTTP_401_UNAUTHORIZED:
+            return RedirectResponse(url="/gui/login", status_code=303)
+        raise
+    return templates.TemplateResponse("gui_profiles.html", {"request": request, "user": user})
 
 
 # ---------- Run single job ----------
@@ -620,7 +646,13 @@ def get_run_logs(run_id: str, offset: int = 0, max_bytes: int = 4096):
 
 @app.get("/gui/run", response_class=HTMLResponse)
 def gui_run(request: Request):
-    return templates.TemplateResponse("gui_run.html", {"request": request})
+    try:
+        user = get_current_user(request, None)
+    except HTTPException as e:
+        if e.status_code == status.HTTP_401_UNAUTHORIZED:
+            return RedirectResponse(url="/gui/login", status_code=303)
+        raise
+    return templates.TemplateResponse("gui_run.html", {"request": request, "user": user})
 
 
 # -------------------------
