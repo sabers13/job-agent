@@ -19,6 +19,7 @@ from app.config.settings import settings
 from app.config import profile_store
 from app.config.focus import DEFAULT_FOCUS, get_focus_config
 from app.gui_runs import run_manager
+from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.deps import get_current_user
 from app.api.schemas import (
     AggregateReportRequest,
@@ -362,22 +363,8 @@ def delete_profile_api(key: str):
 
 
 @app.get("/gui/login", response_class=HTMLResponse)
-def gui_login_placeholder():
-    html = """
-    <html><body style="font-family:system-ui;max-width:720px;margin:40px auto;padding:0 16px">
-      <h2>Login required</h2>
-      <p>You are not logged in. This endpoint is a placeholder for now.</p>
-      <p>Next step (G2.2) will add the real login page integrated with /auth/login (cookie session).</p>
-      <p>Temporary option: use the API to login and set cookie:</p>
-      <pre>
-curl -i -c cookies.txt -X POST http://127.0.0.1:8000/auth/login \\
-  -H "Content-Type: application/json" \\
-  -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD"}'
-      </pre>
-      <p>Then open <a href="/gui/run">/gui/run</a> in the same browser session after you implement G2.2.</p>
-    </body></html>
-    """
-    return HTMLResponse(content=html, status_code=200)
+def gui_login(request: Request, next: str = "/gui/run"):
+    return templates.TemplateResponse("gui_login.html", {"request": request, "next": next})
 
 
 @app.get("/gui/profiles", response_class=HTMLResponse)
@@ -655,6 +642,13 @@ def gui_run(request: Request):
         raise
     user_ctx = {"id": str(user.id), "email": user.email}
     return templates.TemplateResponse("gui_run.html", {"request": request, "user": user_ctx})
+
+
+@app.get("/gui/logout")
+def gui_logout():
+    resp = RedirectResponse(url="/gui/login", status_code=303)
+    resp.delete_cookie(AUTH_COOKIE_NAME, path="/")
+    return resp
 
 
 # -------------------------

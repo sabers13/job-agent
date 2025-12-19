@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Job Agent – Login</title>
+  <style>
+    body { font-family: system-ui; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; }
+    label { display: block; margin-top: 10px; font-weight: 600; }
+    input { width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box; }
+    button { margin-top: 14px; padding: 10px 14px; cursor: pointer; }
+    .row { display: flex; gap: 10px; margin-top: 10px; }
+    .row > button { flex: 1; }
+    .msg { margin-top: 12px; color: #b00020; white-space: pre-wrap; }
+    .ok  { color: #0a7a0a; }
+    a { color: #0645ad; }
+    .small { font-size: 0.92em; color: #555; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Login</h2>
+
+  <div class="card">
+    <label>Email</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+
+    <label>Password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+
+    <div class="row">
+      <button id="btnLogin">Login</button>
+      <button id="btnSignup" type="button">Sign up</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
+
+    <div class="small">
+      After login, you will be redirected to:
+      <code id="next"></code>
+    </div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const nextUrl = params.get("next") || "/gui/run";
+  document.getElementById("next").textContent = nextUrl;
+
+  function setMsg(text, ok=false) {
+    const el = document.getElementById("msg");
+    el.textContent = text || "";
+    el.className = ok ? "msg ok" : "msg";
+  }
+
+  async function callJson(url, payload) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify(payload)
+    });
+    const text = await r.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (e) {}
+    return { ok: r.ok, status: r.status, data, text };
+  }
+
+  document.getElementById("btnLogin").addEventListener("click", async () => {
+    setMsg("");
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!email || !password) {
+      setMsg("Email and password are required.");
+      return;
+    }
+
+    const res = await callJson("/auth/login", {email, password});
+
+    if (!res.ok) {
+      setMsg(`Login failed (${res.status}).\n${res.text || ""}`.trim());
+      return;
+    }
+
+    setMsg("Login successful. Redirecting…", true);
+    window.location.href = nextUrl;
+  });
+
+  document.getElementById("btnSignup").addEventListener("click", async () => {
+    setMsg("");
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!email || !password) {
+      setMsg("Email and password are required.");
+      return;
+    }
+
+    const res = await callJson("/auth/signup", {email, password});
+
+    if (!res.ok) {
+      setMsg(`Signup failed (${res.status}).\n${res.text || ""}`.trim());
+      return;
+    }
+
+    // Auto-login after successful signup
+    const loginRes = await callJson("/auth/login", {email, password});
+    if (!loginRes.ok) {
+      setMsg("Signup succeeded, but auto-login failed. Please click Login.");
+      return;
+    }
+
+    setMsg("Signup + login successful. Redirecting…", true);
+    window.location.href = nextUrl;
+  });
+</script>
+</body>
+</html>
