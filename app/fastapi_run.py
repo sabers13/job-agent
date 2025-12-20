@@ -28,6 +28,7 @@ from app.db.crud_profiles import (
     get_profile_for_user,
     list_profiles_for_user,
     update_profile_for_user,
+    upsert_profile_for_user,
 )
 from app.db.session import db_session
 from app.api.schemas import (
