@@ -337,15 +337,15 @@ class RunLogsResponse(BaseModel):
 
 class MyProfileCreate(BaseModel):
     profile_key: str
-    profile_name: str
+    profile_name: Optional[str] = None
     description: Optional[str] = None
-    focus_config_json: Dict[str, Any] | str = {}
+    focus_config_json: Optional[Dict[str, Any] | str] = None
 
 
 class MyProfileUpdate(BaseModel):
     profile_name: Optional[str] = None
     description: Optional[str] = None
-    focus_config_json: Dict[str, Any] | str = {}
+    focus_config_json: Optional[Dict[str, Any] | str] = None
 
 
 def _profile_payload_from_db(prof) -> Dict[str, Any]:
@@ -422,22 +422,31 @@ def get_my_profile(key: str, user=Depends(get_current_user)):
 
 
 @app.post("/api/my/profile", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
-def create_my_profile(body: MyProfileCreate, user=Depends(get_current_user)):
+def upsert_my_profile(body: MyProfileCreate, response: Response, user=Depends(get_current_user)):
     with db_session() as db:
         existing = get_profile_for_user(db, user.id, body.profile_key)
-        if existing:
-            raise HTTPException(status_code=409, detail="Profile key already exists")
-        profile_json = body.focus_config_json or {}
-        prof = create_profile_for_user(
+
+        if body.focus_config_json is None:
+            focus_json = existing.focus_config_json if existing else {}
+        else:
+            focus_json = body.focus_config_json
+
+        profile_name = (body.profile_name or (existing.profile_name if existing else None) or body.profile_key).strip()
+        description = body.description if body.description is not None else (existing.description if existing else None)
+
+        prof = upsert_profile_for_user(
             db=db,
             user_id=user.id,
             profile_key=body.profile_key,
-            profile_name=body.profile_name,
-            description=body.description,
-            profile_json=profile_json,
+            profile_name=profile_name,
+            description=description,
+            profile_json=focus_json,
         )
         db.commit()
         db.refresh(prof)
+
+        response.headers["X-Upsert-Action"] = "updated" if existing else "created"
+
         payload = _profile_payload_from_db(prof)
         return FocusProfileModel(**payload)
 
