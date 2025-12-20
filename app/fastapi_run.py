@@ -354,8 +354,10 @@ def _profile_payload_from_db(prof) -> Dict[str, Any]:
     except Exception:
         payload = {}
     if isinstance(payload, dict):
+        payload.setdefault("profile_key", prof.profile_key)
         payload.setdefault("profile_name", getattr(prof, "profile_name", None) or prof.profile_key)
         payload.setdefault("description", getattr(prof, "description", None))
+        payload.setdefault("search_seeds", [])
     return payload if isinstance(payload, dict) else {}
 
 

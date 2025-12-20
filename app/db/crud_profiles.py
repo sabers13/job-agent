@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,6 +24,25 @@ def _normalize_focus_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _ensure_focus_json(
+    *,
+    profile_key: str,
+    profile_name: str,
+    description: Optional[str],
+    focus_json: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Ensure focus_config_json is self-contained for FocusProfileModel construction.
+    """
+    out = dict(focus_json or {})
+    out.setdefault("profile_key", profile_key)
+    out.setdefault("profile_name", profile_name)
+    if description is not None:
+        out.setdefault("description", description)
+    out.setdefault("search_seeds", [])
+    return out
+
+
 def list_profiles_for_user(db: Session, user_id: uuid.UUID) -> List[Profile]:
     stmt = select(Profile).where(Profile.user_id == user_id)
     return list(db.scalars(stmt).all())
@@ -40,9 +59,20 @@ def create_profile_for_user(
     profile_key: str,
     profile_name: str,
     description: Optional[str],
-    profile_json: str,
+    profile_json: Any,
 ) -> Profile:
-    profile_json = _normalize_focus_json(profile_json)
+    if isinstance(profile_json, str):
+        try:
+            profile_json = json.loads(profile_json)
+        except Exception:
+            profile_json = {}
+    focus_json = _ensure_focus_json(
+        profile_key=profile_key,
+        profile_name=profile_name,
+        description=description,
+        focus_json=profile_json if isinstance(profile_json, dict) else {},
+    )
+    profile_json = _normalize_focus_json(focus_json)
     profile = Profile(
         user_id=user_id,
         profile_key=profile_key,
@@ -61,12 +91,23 @@ def update_profile_for_user(
     profile_key: str,
     profile_name: str,
     description: Optional[str],
-    profile_json: str,
+    profile_json: Any,
 ) -> Optional[Profile]:
     existing = get_profile_for_user(db, user_id, profile_key)
     if not existing:
         return None
-    profile_json = _normalize_focus_json(profile_json)
+    if isinstance(profile_json, str):
+        try:
+            profile_json = json.loads(profile_json)
+        except Exception:
+            profile_json = {}
+    focus_json = _ensure_focus_json(
+        profile_key=profile_key,
+        profile_name=profile_name,
+        description=description,
+        focus_json=profile_json if isinstance(profile_json, dict) else {},
+    )
+    profile_json = _normalize_focus_json(focus_json)
     existing.profile_name = profile_name
     existing.description = description
     existing.focus_config_json = profile_json
@@ -80,11 +121,22 @@ def upsert_profile_for_user(
     profile_key: str,
     profile_name: str,
     description: Optional[str],
-    profile_json: str,
+    profile_json: Any,
 ) -> Profile:
     existing = get_profile_for_user(db, user_id, profile_key)
     if existing:
-        profile_json = _normalize_focus_json(profile_json)
+        if isinstance(profile_json, str):
+            try:
+                profile_json = json.loads(profile_json)
+            except Exception:
+                profile_json = {}
+        focus_json = _ensure_focus_json(
+            profile_key=profile_key,
+            profile_name=profile_name,
+            description=description,
+            focus_json=profile_json if isinstance(profile_json, dict) else {},
+        )
+        profile_json = _normalize_focus_json(focus_json)
         existing.profile_name = profile_name
         existing.description = description
         existing.focus_config_json = profile_json
