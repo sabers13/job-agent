@@ -49,6 +49,8 @@ class Profile(Base):
         UNIQUEIDENTIFIER(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     profile_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    profile_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(512), nullable=True)
     focus_config_json: Mapped[str] = mapped_column(UnicodeText(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
