@@ -21,6 +21,8 @@ from app.config.focus import DEFAULT_FOCUS, get_focus_config
 from app.gui_runs import run_manager
 from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.deps import get_current_user
+from app.db.crud_profiles import get_profile_for_user, list_profiles_for_user
+from app.db.session import db_session
 from app.api.schemas import (
     AggregateReportRequest,
     BundleRequest,
@@ -338,6 +340,39 @@ def list_profiles():
         for key, p in profiles.items()
     ]
     return {"profiles": items}
+
+
+@app.get("/api/my/profiles", response_model=dict, dependencies=[Depends(get_current_user)])
+def list_my_profiles(user=Depends(get_current_user)):
+    with db_session() as db:
+        rows = list_profiles_for_user(db, user.id)
+    items = []
+    for p in rows:
+        try:
+            payload = json.loads(p.focus_config_json or "{}")
+        except Exception:
+            payload = {}
+        items.append(
+            {
+                "key": p.profile_key,
+                "profile_name": getattr(p, "profile_name", None) or payload.get("profile_name") or p.profile_key,
+                "description": getattr(p, "description", None) or payload.get("description"),
+            }
+        )
+    return {"profiles": items}
+
+
+@app.get("/api/my/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+def get_my_profile(key: str, user=Depends(get_current_user)):
+    with db_session() as db:
+        prof = get_profile_for_user(db, user.id, key)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    try:
+        payload = json.loads(prof.focus_config_json or "{}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Profile data malformed")
+    return FocusProfileModel(**payload)
 
 
 @app.get("/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])

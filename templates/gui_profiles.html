@@ -146,9 +146,28 @@
     }
 
     async function fetchProfiles() {
-      const res = await fetch("/api/profiles");
-      const data = await res.json();
-      return data.profiles || [];
+      let profiles = [];
+      try {
+        const res = await fetch("/api/my/profiles");
+        if (res.ok) {
+          const data = await res.json();
+          profiles = data.profiles || [];
+        }
+      } catch (err) {
+        console.warn("Failed to load user profiles", err);
+      }
+      if (!profiles.length) {
+        try {
+          const resDefault = await fetch("/api/profiles");
+          if (resDefault.ok) {
+            const data = await resDefault.json();
+            profiles = data.profiles || [];
+          }
+        } catch (err) {
+          console.warn("Failed to load default profiles", err);
+        }
+      }
+      return profiles;
     }
 
     async function loadProfileList() {
@@ -164,12 +183,16 @@
     }
 
     async function loadProfile(key) {
-      const res = await fetch("/api/profile/" + encodeURIComponent(key));
+      let p = null;
+      let res = await fetch("/api/my/profile/" + encodeURIComponent(key));
+      if (!res.ok) {
+        res = await fetch("/api/profile/" + encodeURIComponent(key));
+      }
       if (!res.ok) {
         alert("Failed to load profile: " + res.statusText);
         return;
       }
-      const p = await res.json();
+      p = await res.json();
       document.getElementById("profile-key").value = key;
       document.getElementById("profile-name").value = p.profile_name || "";
       document.getElementById("profile-description").value = p.description || "";
