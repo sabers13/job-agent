@@ -106,6 +106,7 @@ class Constraints(BaseModel):
 
 
 class FocusProfileModel(BaseModel):
+    profile_key: str = ""
     profile_name: str
     description: Optional[str] = None
     search_seeds: List[str] = []
