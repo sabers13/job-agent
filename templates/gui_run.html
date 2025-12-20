@@ -102,9 +102,22 @@
     let logTimerId = null;
 
     async function loadProfilesCommon() {
-      const res = await fetch("/api/profiles");
-      const data = await res.json();
-      const profiles = data.profiles || [];
+      let profiles = [];
+      try {
+        const res = await fetch("/api/my/profiles", { credentials: "same-origin" });
+        if (res.ok) {
+          const data = await res.json();
+          profiles = data.profiles || [];
+        }
+      } catch (e) {
+        console.warn("Failed to load user profiles", e);
+      }
+
+      if (!profiles.length) {
+        const res = await fetch("/api/profiles", { credentials: "same-origin" });
+        const data = await res.json();
+        profiles = data.profiles || [];
+      }
 
       const singleSel = document.getElementById("profile-select");
       const batchSel = document.getElementById("batch-profile-select");

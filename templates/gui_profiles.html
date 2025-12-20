@@ -117,6 +117,8 @@
   </div>
 
   <script>
+    let loadedProfileData = null;
+
     const infoTexts = {
       "profile-key": "Stable identifier for the profile (used in URLs and storage). Keep it short and URL-safe.",
       "profile-name": "Human-friendly display name. Defaults to the key if left blank.",
@@ -145,10 +147,14 @@
       document.getElementById("exp-penalty-display").textContent = Number(val).toFixed(1);
     }
 
+    async function apiFetch(url, opts = {}) {
+      return fetch(url, { credentials: "same-origin", ...opts });
+    }
+
     async function fetchProfiles() {
       let profiles = [];
       try {
-        const res = await fetch("/api/my/profiles");
+        const res = await apiFetch("/api/my/profiles");
         if (res.ok) {
           const data = await res.json();
           profiles = data.profiles || [];
@@ -158,7 +164,7 @@
       }
       if (!profiles.length) {
         try {
-          const resDefault = await fetch("/api/profiles");
+          const resDefault = await apiFetch("/api/profiles");
           if (resDefault.ok) {
             const data = await resDefault.json();
             profiles = data.profiles || [];
@@ -184,15 +190,16 @@
 
     async function loadProfile(key) {
       let p = null;
-      let res = await fetch("/api/my/profile/" + encodeURIComponent(key));
+      let res = await apiFetch("/api/my/profile/" + encodeURIComponent(key));
       if (!res.ok) {
-        res = await fetch("/api/profile/" + encodeURIComponent(key));
+        res = await apiFetch("/api/profile/" + encodeURIComponent(key));
       }
       if (!res.ok) {
         alert("Failed to load profile: " + res.statusText);
         return;
       }
       p = await res.json();
+      loadedProfileData = p;
       document.getElementById("profile-key").value = key;
       document.getElementById("profile-name").value = p.profile_name || "";
       document.getElementById("profile-description").value = p.description || "";
@@ -219,6 +226,7 @@
       document.getElementById("profile-form").reset();
       document.getElementById("profile-key").value = "";
       document.getElementById("status").textContent = "";
+      loadedProfileData = null;
       const resetPenalty = document.getElementById("exp-penalty").value || 1.0;
       updatePenaltyDisplay(resetPenalty);
     };
@@ -230,36 +238,82 @@
         alert("Profile key is required.");
         return;
       }
-      const body = {
-        profile_name: document.getElementById("profile-name").value.trim() || key,
-        description: document.getElementById("profile-description").value.trim() || null,
-        target_seniority: document.getElementById("target-seniority").value.trim() || "junior",
-        max_allowed_seniority: document.getElementById("max-allowed-seniority").value.trim() || "mid",
-        max_required_experience_years: parseInt(document.getElementById("max-exp-years").value || "3", 10),
-        experience_penalty_strength: parseFloat(document.getElementById("exp-penalty").value || "1.0"),
-        min_german_level: document.getElementById("min-german").value.trim() || "B1",
-        requires_student_status: document.getElementById("requires-student").checked,
-        search_seeds: document.getElementById("search-seeds").value.split(",").map(s => s.trim()).filter(Boolean),
-        core_skills: document.getElementById("core-skills").value.split(",").map(s => s.trim()).filter(Boolean),
-        nice_to_have_skills: document.getElementById("nice-skills").value.split(",").map(s => s.trim()).filter(Boolean),
-        preferred_titles: document.getElementById("pref-titles").value.split(",").map(s => s.trim()).filter(Boolean),
-        excluded_titles: document.getElementById("excl-titles").value.split(",").map(s => s.trim()).filter(Boolean),
-        preferred_locations: document.getElementById("pref-locs").value.split(",").map(s => s.trim()).filter(Boolean),
-        excluded_locations: document.getElementById("excl-locs").value.split(",").map(s => s.trim()).filter(Boolean)
+      const profile_name = document.getElementById("profile-name").value.trim() || key;
+      const description = document.getElementById("profile-description").value.trim();
+
+      const search_seeds = document.getElementById("search-seeds").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const target_seniority = document.getElementById("target-seniority").value.trim() || "junior";
+      const max_allowed_seniority = document.getElementById("max-allowed-seniority").value.trim() || "mid";
+
+      const max_required_experience_years = Number(document.getElementById("max-exp-years").value || 3);
+      const experience_penalty_strength = Number(document.getElementById("exp-penalty").value || 1.0);
+
+      const min_german_level = document.getElementById("min-german").value.trim() || "B1";
+      const requires_student_status = !!document.getElementById("requires-student").checked;
+
+      const core_skills = document.getElementById("core-skills").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const nice_to_have_skills = document.getElementById("nice-skills").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const preferred_titles = document.getElementById("pref-titles").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const excluded_titles = document.getElementById("excl-titles").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const preferred_locations = document.getElementById("pref-locs").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const excluded_locations = document.getElementById("excl-locs").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+
+      const mergedFocus = {
+        ...(loadedProfileData || {}),
+        profile_name,
+        description,
+        search_seeds,
+        target_seniority,
+        max_allowed_seniority,
+        max_required_experience_years,
+        experience_penalty_strength,
+        min_german_level,
+        requires_student_status,
+        core_skills,
+        nice_to_have_skills,
+        preferred_titles,
+        excluded_titles,
+        preferred_locations,
+        excluded_locations,
       };
 
-      const res = await fetch("/api/profile/" + encodeURIComponent(key), {
+      const payload = {
+        profile_key: key,
+        profile_name,
+        description,
+        focus_config_json: mergedFocus,
+      };
+
+      const res = await apiFetch("/api/my/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        alert("Failed to save profile: " + res.statusText);
+        const txt = await res.text();
+        alert("Save failed: " + res.status + " " + txt);
         return;
       }
 
-      document.getElementById("status").textContent = "Saved.";
+      const action = res.headers.get("x-upsert-action") || "saved";
+      const saved = await res.json();
+      loadedProfileData = saved;
+
+      document.getElementById("status").textContent = `OK (${action})`;
       await loadProfileList();
     };
 
@@ -272,11 +326,13 @@
         return;
       }
       if (!confirm("Delete profile '" + key + "'?")) return;
-      const res = await fetch("/api/profile/" + encodeURIComponent(key), { method: "DELETE" });
+      const res = await apiFetch("/api/my/profile/" + encodeURIComponent(key), { method: "DELETE" });
       if (!res.ok) {
-        alert("Failed to delete profile.");
+        const txt = await res.text();
+        alert("Failed to delete profile: " + res.status + " " + txt);
         return;
       }
+      loadedProfileData = null;
       document.getElementById("profile-form").reset();
       document.getElementById("status").textContent = "Deleted.";
       await loadProfileList();
