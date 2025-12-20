@@ -2,13 +2,26 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.profile_store import get_default_profiles_dict
 from app.db.models import Profile
+
+
+def _normalize_focus_json(value: Any) -> str:
+    """
+    Ensure we always store valid JSON text in the DB.
+    Accepts dict/list/str; validates str input is JSON.
+    """
+    if value is None:
+        return "{}"
+    if isinstance(value, str):
+        json.loads(value)
+        return value
+    return json.dumps(value, ensure_ascii=False)
 
 
 def list_profiles_for_user(db: Session, user_id: uuid.UUID) -> List[Profile]:
@@ -29,6 +42,7 @@ def create_profile_for_user(
     description: Optional[str],
     profile_json: str,
 ) -> Profile:
+    profile_json = _normalize_focus_json(profile_json)
     profile = Profile(
         user_id=user_id,
         profile_key=profile_key,
@@ -41,6 +55,25 @@ def create_profile_for_user(
     return profile
 
 
+def update_profile_for_user(
+    db: Session,
+    user_id: uuid.UUID,
+    profile_key: str,
+    profile_name: str,
+    description: Optional[str],
+    profile_json: str,
+) -> Optional[Profile]:
+    existing = get_profile_for_user(db, user_id, profile_key)
+    if not existing:
+        return None
+    profile_json = _normalize_focus_json(profile_json)
+    existing.profile_name = profile_name
+    existing.description = description
+    existing.focus_config_json = profile_json
+    db.flush()
+    return existing
+
+
 def upsert_profile_for_user(
     db: Session,
     user_id: uuid.UUID,
@@ -51,6 +84,7 @@ def upsert_profile_for_user(
 ) -> Profile:
     existing = get_profile_for_user(db, user_id, profile_key)
     if existing:
+        profile_json = _normalize_focus_json(profile_json)
         existing.profile_name = profile_name
         existing.description = description
         existing.focus_config_json = profile_json

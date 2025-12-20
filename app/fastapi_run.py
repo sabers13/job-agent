@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -17,11 +18,17 @@ from pydantic import BaseModel
 
 from app.config.settings import settings
 from app.config import profile_store
-from app.config.focus import DEFAULT_FOCUS, get_focus_config
+from app.config.focus import DEFAULT_FOCUS, FocusConfig, get_focus_config
 from app.gui_runs import run_manager
 from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.deps import get_current_user
-from app.db.crud_profiles import get_profile_for_user, list_profiles_for_user
+from app.db.crud_profiles import (
+    create_profile_for_user,
+    delete_profile_for_user,
+    get_profile_for_user,
+    list_profiles_for_user,
+    update_profile_for_user,
+)
 from app.db.session import db_session
 from app.api.schemas import (
     AggregateReportRequest,
@@ -328,6 +335,46 @@ class RunLogsResponse(BaseModel):
     finished: bool
 
 
+class MyProfileCreate(BaseModel):
+    profile_key: str
+    profile_name: str
+    description: Optional[str] = None
+    focus_config_json: Dict[str, Any] | str = {}
+
+
+class MyProfileUpdate(BaseModel):
+    profile_name: Optional[str] = None
+    description: Optional[str] = None
+    focus_config_json: Dict[str, Any] | str = {}
+
+
+def _profile_payload_from_db(prof) -> Dict[str, Any]:
+    try:
+        payload = json.loads(prof.focus_config_json or "{}")
+    except Exception:
+        payload = {}
+    if isinstance(payload, dict):
+        payload.setdefault("profile_name", getattr(prof, "profile_name", None) or prof.profile_key)
+        payload.setdefault("description", getattr(prof, "description", None))
+    return payload if isinstance(payload, dict) else {}
+
+
+def _resolve_focus_profile_model_for_user(user_id: str, profile_key: str):
+    """Resolve FocusProfileModel with precedence: user DB profile -> built-in profiles."""
+    from app.pipeline.models import FocusProfileModel
+
+    with db_session() as db:
+        prof = get_profile_for_user(db, uuid.UUID(user_id), profile_key)
+    if prof is not None:
+        payload = _profile_payload_from_db(prof)
+        return FocusProfileModel(**payload)
+
+    data = profile_store.get_profile(profile_key)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Unknown profile '{profile_key}'")
+    return FocusProfileModel(**data)
+
+
 @app.get("/api/profiles", response_model=dict, dependencies=[Depends(get_current_user)])
 def list_profiles():
     profiles = profile_store.load_profiles()
@@ -368,11 +415,62 @@ def get_my_profile(key: str, user=Depends(get_current_user)):
         prof = get_profile_for_user(db, user.id, key)
     if not prof:
         raise HTTPException(status_code=404, detail="Profile not found")
-    try:
-        payload = json.loads(prof.focus_config_json or "{}")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Profile data malformed")
+    payload = _profile_payload_from_db(prof)
     return FocusProfileModel(**payload)
+
+
+@app.post("/api/my/profile", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+def create_my_profile(body: MyProfileCreate, user=Depends(get_current_user)):
+    with db_session() as db:
+        existing = get_profile_for_user(db, user.id, body.profile_key)
+        if existing:
+            raise HTTPException(status_code=409, detail="Profile key already exists")
+        profile_json = body.focus_config_json or {}
+        prof = create_profile_for_user(
+            db=db,
+            user_id=user.id,
+            profile_key=body.profile_key,
+            profile_name=body.profile_name,
+            description=body.description,
+            profile_json=profile_json,
+        )
+        db.commit()
+        db.refresh(prof)
+        payload = _profile_payload_from_db(prof)
+        return FocusProfileModel(**payload)
+
+
+@app.post("/api/my/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+def update_my_profile(key: str, body: MyProfileUpdate, user=Depends(get_current_user)):
+    with db_session() as db:
+        prof = get_profile_for_user(db, user.id, key)
+        if not prof:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        profile_json = body.focus_config_json or {}
+        updated = update_profile_for_user(
+            db=db,
+            user_id=user.id,
+            profile_key=key,
+            profile_name=body.profile_name or prof.profile_name,
+            description=body.description if body.description is not None else prof.description,
+            profile_json=profile_json,
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        db.commit()
+        db.refresh(updated)
+        payload = _profile_payload_from_db(updated)
+        return FocusProfileModel(**payload)
+
+
+@app.delete("/api/my/profile/{key}", response_model=dict, dependencies=[Depends(get_current_user)])
+def delete_my_profile(key: str, user=Depends(get_current_user)):
+    with db_session() as db:
+        ok = delete_profile_for_user(db, user.id, key)
+        db.commit()
+    if not ok:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return {"ok": True}
 
 
 @app.get("/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
@@ -463,6 +561,7 @@ def _run_prefect_batch(
     use_llm_enrich: bool,
     use_llm_scoring: bool,
     apply_blocker_cap: bool,
+    focus_config_path: str | None = None,
 ) -> None:
     run_dir = run_manager.get_run_dir(run_id)
     log_file = run_manager.log_path(run_id)
@@ -489,6 +588,8 @@ def _run_prefect_batch(
     env = os.environ.copy()
     env["JOBAGENT_FOCUS_PROFILE"] = profile_key
     env["JOBAGENT_PROFILE_KEY"] = profile_key
+    if focus_config_path:
+        env["JOBAGENT_FOCUS_CONFIG_PATH"] = focus_config_path
     env["JOBAGENT_USE_LLM_ENRICH"] = "true" if use_llm_enrich else "false"
     env["JOBAGENT_USE_LLM_SCORING"] = "true" if use_llm_scoring else "false"
     env["JOBAGENT_APPLY_BLOCKER_CAP"] = "true" if apply_blocker_cap else "false"
@@ -558,9 +659,12 @@ def _run_prefect_batch(
 
 
 @app.post("/api/run_single", response_model=RunSingleResponse, dependencies=[Depends(get_current_user)])
-async def run_single(req: RunSingleRequest) -> RunSingleResponse:
+async def run_single(req: RunSingleRequest, user=Depends(get_current_user)) -> RunSingleResponse:
     try:
-        focus = get_focus_config(req.profile_key)
+        profile_model = _resolve_focus_profile_model_for_user(str(user.id), req.profile_key)
+        focus = FocusConfig.from_profile(profile_model)
+    except HTTPException:
+        raise
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown profile '{req.profile_key}'")
 
@@ -610,13 +714,22 @@ async def run_single(req: RunSingleRequest) -> RunSingleResponse:
 
 
 @app.post("/api/start_batch_run", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)])
-def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks):
+def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
     try:
-        get_focus_config(req.profile_key)
+        profile_model = _resolve_focus_profile_model_for_user(str(user.id), req.profile_key)
+    except HTTPException:
+        raise
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown profile '{req.profile_key}'")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to load focus profile")
 
     run_id = run_manager.create_run_dir()
+    run_dir = run_manager.get_run_dir(run_id)
+    focus_override_path = run_dir / "focus_profile_override.json"
+    focus_override_payload = {"profile_key": req.profile_key, **profile_model.model_dump()}
+    focus_override_path.write_text(json.dumps(focus_override_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
     background_tasks.add_task(
         _run_prefect_batch,
         run_id=run_id,
@@ -625,6 +738,7 @@ def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks
         use_llm_enrich=req.use_llm_enrich,
         use_llm_scoring=req.use_llm_scoring,
         apply_blocker_cap=req.apply_blocker_cap,
+        focus_config_path=str(focus_override_path),
     )
 
     status = {

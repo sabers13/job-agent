@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
+import os
+from pathlib import Path
 from typing import Dict, Set, Optional, TYPE_CHECKING, List
 
 from app.config import profile_store
@@ -109,7 +112,44 @@ def load_focus_profiles() -> Dict[str, FocusConfig]:
     return profiles
 
 
+def _load_focus_profile_override(profile_key: str):
+    """
+    Optionally load a per-run focus profile override, used when running subprocesses
+    that receive a focus config JSON via JOBAGENT_FOCUS_CONFIG_PATH.
+    """
+    path = os.getenv("JOBAGENT_FOCUS_CONFIG_PATH")
+    if not path:
+        return None
+
+    p = Path(path)
+    if not p.exists():
+        return None
+
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    file_key = data.get("profile_key") or data.get("key")
+    if file_key and file_key != profile_key:
+        return None
+
+    from app.pipeline.models import FocusProfileModel
+
+    try:
+        return FocusProfileModel.model_validate(data)
+    except Exception:
+        return None
+
+
 def get_focus_config(profile_key: str) -> FocusConfig:
+    override = _load_focus_profile_override(profile_key)
+    if override is not None:
+        return FocusConfig.from_profile(override)
+
     profiles = load_focus_profiles()
     if profile_key not in profiles:
         raise KeyError(f"Unknown profile key: {profile_key}")
