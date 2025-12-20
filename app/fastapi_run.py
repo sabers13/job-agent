@@ -14,7 +14,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config.settings import settings
 from app.config import profile_store
@@ -340,13 +340,13 @@ class MyProfileCreate(BaseModel):
     profile_key: str
     profile_name: Optional[str] = None
     description: Optional[str] = None
-    focus_config_json: Optional[Dict[str, Any] | str] = None
+    focus_config_json: Dict[str, Any] | str = Field(default_factory=dict)
 
 
 class MyProfileUpdate(BaseModel):
     profile_name: Optional[str] = None
     description: Optional[str] = None
-    focus_config_json: Optional[Dict[str, Any] | str] = None
+    focus_config_json: Dict[str, Any] | str = Field(default_factory=dict)
 
 
 def _profile_payload_from_db(prof) -> Dict[str, Any]:
@@ -425,53 +425,42 @@ def get_my_profile(key: str, user=Depends(get_current_user)):
 @app.post("/api/my/profile", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
 def upsert_my_profile(body: MyProfileCreate, response: Response, user=Depends(get_current_user)):
     with db_session() as db:
-        existing = get_profile_for_user(db, user.id, body.profile_key)
-
-        if body.focus_config_json is None:
-            focus_json = existing.focus_config_json if existing else {}
-        else:
-            focus_json = body.focus_config_json
-
-        profile_name = (body.profile_name or (existing.profile_name if existing else None) or body.profile_key).strip()
-        description = body.description if body.description is not None else (existing.description if existing else None)
+        existed = get_profile_for_user(db, user.id, body.profile_key) is not None
 
         prof = upsert_profile_for_user(
             db=db,
             user_id=user.id,
             profile_key=body.profile_key,
-            profile_name=profile_name,
-            description=description,
-            profile_json=focus_json,
+            profile_name=(body.profile_name or body.profile_key),
+            description=body.description,
+            profile_json=body.focus_config_json or {},
         )
+
         db.commit()
         db.refresh(prof)
 
-        response.headers["X-Upsert-Action"] = "updated" if existing else "created"
-
+        response.headers["X-Upsert-Action"] = "updated" if existed else "created"
         payload = _profile_payload_from_db(prof)
         return FocusProfileModel(**payload)
 
 
 @app.post("/api/my/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
-def update_my_profile(key: str, body: MyProfileUpdate, user=Depends(get_current_user)):
+def upsert_my_profile_by_key(key: str, body: MyProfileUpdate, response: Response, user=Depends(get_current_user)):
     with db_session() as db:
-        prof = get_profile_for_user(db, user.id, key)
-        if not prof:
-            raise HTTPException(status_code=404, detail="Profile not found")
-        profile_json = body.focus_config_json or {}
-        updated = update_profile_for_user(
+        existed = get_profile_for_user(db, user.id, key) is not None
+
+        prof = upsert_profile_for_user(
             db=db,
             user_id=user.id,
             profile_key=key,
-            profile_name=body.profile_name or prof.profile_name,
-            description=body.description if body.description is not None else prof.description,
-            profile_json=profile_json,
+            profile_name=body.profile_name or key,
+            description=body.description,
+            profile_json=body.focus_config_json or {},
         )
-        if not updated:
-            raise HTTPException(status_code=404, detail="Profile not found")
         db.commit()
-        db.refresh(updated)
-        payload = _profile_payload_from_db(updated)
+        db.refresh(prof)
+        response.headers["X-Upsert-Action"] = "updated" if existed else "created"
+        payload = _profile_payload_from_db(prof)
         return FocusProfileModel(**payload)
 
 
