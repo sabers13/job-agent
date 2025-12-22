@@ -149,8 +149,9 @@
 
     async function apiFetch(url, opts = {}) {
       const res = await fetch(url, { credentials: "same-origin", ...opts });
-      if (res.status === 401) {
-        window.location.href = "/gui/login";
+      if (res.status === 401 || res.status === 403) {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/gui/login?next=${next}`;
         return null;
       }
       return res;
@@ -320,11 +321,11 @@
         return;
       }
 
-      const action = res.headers.get("x-upsert-action") || "saved";
+      const action = (res.headers.get("x-upsert-action") || "saved").toLowerCase();
       const saved = await res.json();
       loadedProfileData = saved;
 
-      document.getElementById("status").textContent = `OK (${action})`;
+      document.getElementById("status").textContent = `Profile ${action}.`;
       await loadProfileList();
     };
 

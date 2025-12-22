@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import uuid
+from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -362,6 +363,13 @@ def _profile_payload_from_db(prof) -> Dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def gui_login_redirect(request: Request) -> RedirectResponse:
+    next_path = request.url.path
+    if request.url.query:
+        next_path += "?" + request.url.query
+    return RedirectResponse(url=f"/gui/login?next={quote(next_path, safe='')}", status_code=303)
+
+
 def _resolve_focus_profile_model_for_user(user_id: str, profile_key: str):
     """Resolve FocusProfileModel with precedence: user DB profile -> built-in profiles."""
     from app.pipeline.models import FocusProfileModel
@@ -507,7 +515,7 @@ def gui_profiles(request: Request):
         user = get_current_user(request, None)
     except HTTPException as e:
         if e.status_code == status.HTTP_401_UNAUTHORIZED:
-            return RedirectResponse(url="/gui/login", status_code=303)
+            return gui_login_redirect(request)
         raise
     user_ctx = {"id": str(user.id), "email": user.email}
     return templates.TemplateResponse("gui_profiles.html", {"request": request, "user": user_ctx})
@@ -788,7 +796,7 @@ def gui_run(request: Request):
         user = get_current_user(request, None)
     except HTTPException as e:
         if e.status_code == status.HTTP_401_UNAUTHORIZED:
-            return RedirectResponse(url="/gui/login", status_code=303)
+            return gui_login_redirect(request)
         raise
     user_ctx = {"id": str(user.id), "email": user.email}
     return templates.TemplateResponse("gui_run.html", {"request": request, "user": user_ctx})

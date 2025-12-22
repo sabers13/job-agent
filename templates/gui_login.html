@@ -41,9 +41,11 @@
   </div>
 
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const nextUrl = params.get("next") || "/gui/run";
-  document.getElementById("next").textContent = nextUrl;
+  function nextUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("next") || "/gui/run";
+  }
+  document.getElementById("next").textContent = nextUrl();
 
   function setMsg(text, ok=false) {
     const el = document.getElementById("msg");
@@ -82,7 +84,7 @@
     }
 
     setMsg("Login successful. Redirecting…", true);
-    window.location.href = nextUrl;
+    window.location.href = nextUrl();
   });
 
   document.getElementById("btnSignup").addEventListener("click", async () => {
@@ -110,7 +112,7 @@
     }
 
     setMsg("Signup + login successful. Redirecting…", true);
-    window.location.href = nextUrl;
+    window.location.href = nextUrl();
   });
 </script>
 </body>

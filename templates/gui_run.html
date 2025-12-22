@@ -103,8 +103,9 @@
 
     async function apiFetch(url, opts = {}) {
       const res = await fetch(url, { credentials: "same-origin", ...opts });
-      if (res.status === 401) {
-        window.location.href = "/gui/login";
+      if (res.status === 401 || res.status === 403) {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/gui/login?next=${next}`;
         return null;
       }
       return res;
