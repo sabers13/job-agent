@@ -101,22 +101,26 @@
     let statusTimerId = null;
     let logTimerId = null;
 
+    async function apiFetch(url, opts = {}) {
+      const res = await fetch(url, { credentials: "same-origin", ...opts });
+      if (res.status === 401) {
+        window.location.href = "/gui/login";
+        return null;
+      }
+      return res;
+    }
+
     async function loadProfilesCommon() {
       let profiles = [];
       try {
-        const res = await fetch("/api/my/profiles", { credentials: "same-origin" });
+        const res = await apiFetch("/api/my/profiles");
+        if (!res) return;
         if (res.ok) {
           const data = await res.json();
           profiles = data.profiles || [];
         }
       } catch (e) {
         console.warn("Failed to load user profiles", e);
-      }
-
-      if (!profiles.length) {
-        const res = await fetch("/api/profiles", { credentials: "same-origin" });
-        const data = await res.json();
-        profiles = data.profiles || [];
       }
 
       const singleSel = document.getElementById("profile-select");
@@ -127,7 +131,7 @@
         if (profiles.length === 0) {
           const opt = document.createElement("option");
           opt.value = "";
-          opt.textContent = "No profiles defined – go to /gui/profiles first";
+          opt.textContent = "No profiles defined – go to /gui/profiles";
           sel.appendChild(opt);
           sel.disabled = true;
           return;
@@ -160,7 +164,8 @@
     async function pollBatchStatus() {
       if (!currentBatchRunId) return;
       try {
-        const res = await fetch("/api/run_status/" + encodeURIComponent(currentBatchRunId));
+        const res = await apiFetch("/api/run_status/" + encodeURIComponent(currentBatchRunId));
+        if (!res) return;
         if (!res.ok) {
           document.getElementById("batch-status").textContent = "Error fetching status.";
           return;
@@ -182,7 +187,8 @@
       const logEl = document.getElementById("batch-log");
       try {
         const url = `/api/run_logs/${encodeURIComponent(currentBatchRunId)}?offset=${currentLogOffset}`;
-        const res = await fetch(url);
+        const res = await apiFetch(url);
+        if (!res) return;
         if (!res.ok) {
           logEl.textContent += `\n[Log error: HTTP ${res.status}]`;
           return;
@@ -255,19 +261,16 @@
 
       const body = {
         profile_key: profileKey,
-        url: url,
-        enrich: enrich,
-        use_llm_scoring: useLlmScoring,
-        apply_blocker_cap: applyBlockerCap,
-        // cutoff_iso: document.getElementById("cutoff-iso").value.trim() || null
+        url: url
       };
 
       try {
-        const res = await fetch("/api/run_single", {
+        const res = await apiFetch("/api/run_single", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        if (!res) return;
         if (!res.ok) {
           const txt = await res.text();
           statusEl.textContent = "Error: " + res.status + " " + txt;
@@ -308,11 +311,12 @@
           use_llm_scoring: useLlmScoring,
           apply_blocker_cap: applyBlockerCap
         };
-        const res = await fetch("/api/start_batch_run", {
+        const res = await apiFetch("/api/start_batch_run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        if (!res) return;
         if (!res.ok) {
           const txt = await res.text();
           statusEl.textContent = "Error: " + res.status + " " + txt;

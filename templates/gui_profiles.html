@@ -148,13 +148,19 @@
     }
 
     async function apiFetch(url, opts = {}) {
-      return fetch(url, { credentials: "same-origin", ...opts });
+      const res = await fetch(url, { credentials: "same-origin", ...opts });
+      if (res.status === 401) {
+        window.location.href = "/gui/login";
+        return null;
+      }
+      return res;
     }
 
     async function fetchProfiles() {
       let profiles = [];
       try {
         const res = await apiFetch("/api/my/profiles");
+        if (!res) return profiles;
         if (res.ok) {
           const data = await res.json();
           profiles = data.profiles || [];
@@ -165,6 +171,7 @@
       if (!profiles.length) {
         try {
           const resDefault = await apiFetch("/api/profiles");
+          if (!resDefault) return profiles;
           if (resDefault.ok) {
             const data = await resDefault.json();
             profiles = data.profiles || [];
@@ -193,6 +200,9 @@
       let res = await apiFetch("/api/my/profile/" + encodeURIComponent(key));
       if (!res.ok) {
         res = await apiFetch("/api/profile/" + encodeURIComponent(key));
+      }
+      if (!res) {
+        return;
       }
       if (!res.ok) {
         alert("Failed to load profile: " + res.statusText);
@@ -303,6 +313,7 @@
         body: JSON.stringify(payload),
       });
 
+      if (!res) return;
       if (!res.ok) {
         const txt = await res.text();
         alert("Save failed: " + res.status + " " + txt);
@@ -327,6 +338,7 @@
       }
       if (!confirm("Delete profile '" + key + "'?")) return;
       const res = await apiFetch("/api/my/profile/" + encodeURIComponent(key), { method: "DELETE" });
+      if (!res) return;
       if (!res.ok) {
         const txt = await res.text();
         alert("Failed to delete profile: " + res.status + " " + txt);
