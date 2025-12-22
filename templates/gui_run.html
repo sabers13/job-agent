@@ -262,7 +262,10 @@
 
       const body = {
         profile_key: profileKey,
-        url: url
+        url: url,
+        use_llm_enrich: enrich,
+        use_llm_scoring: useLlmScoring,
+        apply_blocker_cap: applyBlockerCap,
       };
 
       try {
@@ -310,7 +313,7 @@
           search: { max_age_days: maxAge },
           use_llm_enrich: useEnrich,
           use_llm_scoring: useLlmScoring,
-          apply_blocker_cap: applyBlockerCap
+          apply_blocker_cap: applyBlockerCap,
         };
         const res = await apiFetch("/api/start_batch_run", {
           method: "POST",

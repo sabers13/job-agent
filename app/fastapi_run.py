@@ -27,6 +27,7 @@ from app.db.crud_profiles import (
     create_profile_for_user,
     delete_profile_for_user,
     get_profile_for_user,
+    get_focus_profile_model_for_user,
     list_profiles_for_user,
     update_profile_for_user,
     upsert_profile_for_user,
@@ -669,13 +670,11 @@ def _run_prefect_batch(
 
 @app.post("/api/run_single", response_model=RunSingleResponse, dependencies=[Depends(get_current_user)])
 async def run_single(req: RunSingleRequest, user=Depends(get_current_user)) -> RunSingleResponse:
-    try:
-        profile_model = _resolve_focus_profile_model_for_user(str(user.id), req.profile_key)
-        focus = FocusConfig.from_profile(profile_model)
-    except HTTPException:
-        raise
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Unknown profile '{req.profile_key}'")
+    with db_session() as db:
+        profile_model = get_focus_profile_model_for_user(db, user.id, req.profile_key)
+    if not profile_model:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    focus = FocusConfig.from_profile(profile_model)
 
     backend = req.backend or "auto"
     if backend not in ("auto", "pw", "http"):
@@ -724,14 +723,10 @@ async def run_single(req: RunSingleRequest, user=Depends(get_current_user)) -> R
 
 @app.post("/api/start_batch_run", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)])
 def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
-    try:
-        profile_model = _resolve_focus_profile_model_for_user(str(user.id), req.profile_key)
-    except HTTPException:
-        raise
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Unknown profile '{req.profile_key}'")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to load focus profile")
+    with db_session() as db:
+        profile_model = get_focus_profile_model_for_user(db, user.id, req.profile_key)
+    if not profile_model:
+        raise HTTPException(status_code=404, detail="Profile not found")
 
     run_id = run_manager.create_run_dir()
     run_dir = run_manager.get_run_dir(run_id)

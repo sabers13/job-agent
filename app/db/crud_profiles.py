@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.profile_store import get_default_profiles_dict
 from app.db.models import Profile
+from app.pipeline.models import FocusProfileModel
 
 
 def _normalize_focus_json(value: Any) -> str:
@@ -169,3 +170,37 @@ def seed_default_profiles_for_user(db: Session, user_id: uuid.UUID) -> int:
         create_profile_for_user(db, user_id, key, profile_name, description, profile_json)
         inserted += 1
     return inserted
+
+
+def get_focus_profile_model_for_user(
+    db: Session,
+    user_id: uuid.UUID,
+    profile_key: str,
+) -> Optional[FocusProfileModel]:
+    prof = get_profile_for_user(db, user_id, profile_key)
+    if not prof:
+        return None
+
+    raw = prof.focus_config_json or "{}"
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except Exception:
+            data = {}
+    else:
+        data = raw
+
+    if isinstance(data, dict):
+        data["profile_name"] = prof.profile_name or data.get("profile_name") or profile_key
+        data["description"] = prof.description or data.get("description")
+        data["profile_key"] = prof.profile_key
+        data.setdefault("search_seeds", [])
+    else:
+        data = {
+            "profile_key": prof.profile_key,
+            "profile_name": prof.profile_name or profile_key,
+            "description": prof.description,
+            "search_seeds": [],
+        }
+
+    return FocusProfileModel(**data)
