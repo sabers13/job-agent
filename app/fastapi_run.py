@@ -317,6 +317,7 @@ class StartBatchRunRequest(BaseModel):
     use_llm_enrich: bool = True
     use_llm_scoring: bool = True
     apply_blocker_cap: bool = True
+    seed_urls: Optional[List[str]] = None
 
 
 class BatchRunStatus(BaseModel):
@@ -564,6 +565,28 @@ def _build_seeds_from_focus(focus) -> Optional[List[Dict[str, Any]]]:
     return payload or None
 
 
+def _build_seeds_from_urls(seed_urls: List[str]) -> List[Dict[str, Any]]:
+    payload: List[Dict[str, Any]] = []
+    for idx, raw in enumerate(seed_urls):
+        if not raw:
+            continue
+        url = raw.strip()
+        if not url:
+            continue
+        slug = _slugify(url.split("/")[-1] or f"seed-{idx+1}")
+        payload.append(
+            {
+                "slug": slug or f"seed-{idx+1}",
+                "seed_url": url,
+                "use_playwright": False,
+                "delay_sec": 1.2,
+                "max_pages": 80,
+                "max_jobs": None,
+            }
+        )
+    return payload
+
+
 def _run_prefect_batch(
     run_id: str,
     profile_key: str,
@@ -572,6 +595,7 @@ def _run_prefect_batch(
     use_llm_scoring: bool,
     apply_blocker_cap: bool,
     focus_config_path: str | None = None,
+    seeds_json_path: str | None = None,
 ) -> None:
     run_dir = run_manager.get_run_dir(run_id)
     log_file = run_manager.log_path(run_id)
@@ -600,6 +624,8 @@ def _run_prefect_batch(
     env["JOBAGENT_PROFILE_KEY"] = profile_key
     if focus_config_path:
         env["JOBAGENT_FOCUS_CONFIG_PATH"] = focus_config_path
+    if seeds_json_path:
+        env["JOBAGENT_STEPSTONE_SEEDS_JSON_PATH"] = seeds_json_path
     env["JOBAGENT_USE_LLM_ENRICH"] = "true" if use_llm_enrich else "false"
     env["JOBAGENT_USE_LLM_SCORING"] = "true" if use_llm_scoring else "false"
     env["JOBAGENT_APPLY_BLOCKER_CAP"] = "true" if apply_blocker_cap else "false"
@@ -734,6 +760,13 @@ def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks
     focus_override_payload = {"profile_key": req.profile_key, **profile_model.model_dump()}
     focus_override_path.write_text(json.dumps(focus_override_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    seeds_json_path = None
+    if req.seed_urls:
+        seeds_payload = _build_seeds_from_urls(req.seed_urls)
+        if seeds_payload:
+            seeds_json_path = run_dir / "seed_override.json"
+            seeds_json_path.write_text(json.dumps(seeds_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
     background_tasks.add_task(
         _run_prefect_batch,
         run_id=run_id,
@@ -743,6 +776,7 @@ def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks
         use_llm_scoring=req.use_llm_scoring,
         apply_blocker_cap=req.apply_blocker_cap,
         focus_config_path=str(focus_override_path),
+        seeds_json_path=str(seeds_json_path) if seeds_json_path else None,
     )
 
     status = {

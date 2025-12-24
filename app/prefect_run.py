@@ -54,6 +54,13 @@ def _resolve_seed_configs(
         data = json.loads(env_json)
         return [SeedConfig(**item) for item in data]
 
+    env_path = getattr(settings, "seeds_json_path", None)
+    if env_path:
+        path = Path(env_path).expanduser()
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return [SeedConfig(**item) for item in data]
+
     env_path = str(settings.seeds_file) if getattr(settings, "seeds_file", None) else None
     if env_path:
         path = Path(env_path).expanduser()

@@ -161,6 +161,7 @@ class Settings:
         or "config/stepstone_seeds.json"
     )
     seeds_json: str | None = _env("JOBAGENT_STEPSTONE" "_SEEDS_JSON", "STEPSTONE" "_SEEDS_JSON", default=None)
+    seeds_json_path: str | None = _env("JOBAGENT_STEPSTONE_SEEDS_JSON_PATH", default=None)
 
 
 settings = Settings()
