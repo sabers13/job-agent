@@ -7,6 +7,16 @@ __pycache__/
 venv/
 .env
 .env.*
+
+# Local secrets / session data
+cookies*.txt
+jar.txt
+
+# Local artifacts
+job agent.zip
+temp/
+temp_log_analyze/
+*.pdf
 *.log
 
 # Output/artifacts
@@ -19,3 +29,5 @@ output/
 
 .env
 .env.*
+!.env.example
+!.env.dev.example

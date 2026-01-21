@@ -121,6 +121,33 @@ class AggregateReportResponse(_Base):
     path: str
 
 
+class ResumeUploadResponse(_Base):
+    resume_id: str
+    is_active: bool
+    filename: str
+    sha256: str
+
+
+class ResumeListItem(_Base):
+    id: str
+    filename: str
+    created_at: Optional[str] = None
+    is_active: bool
+
+
+class ResumeDetailResponse(_Base):
+    id: str
+    filename: str
+    mime_type: str
+    sha256: str
+    storage_path: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    is_active: bool
+    parsed_json: Optional[Any] = None
+    text_excerpt: Optional[str] = None
+
+
 class JobListItem(_Base):
     url: str
     posted_iso: Optional[str] = None

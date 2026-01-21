@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     from dotenv import load_dotenv
@@ -64,6 +65,7 @@ class Settings:
     apply_blocker_cap: bool = os.getenv("JOBAGENT_APPLY_BLOCKER_CAP", "true").lower() == "true"
     llm_language_override: bool = os.getenv("JOBAGENT_LLM_LANGUAGE_OVERRIDE", "1").lower() in ("1", "true")
     llm_language_override_conf: float = float(os.getenv("JOBAGENT_LLM_LANGUAGE_OVERRIDE_CONF", "0.9"))
+    openai_api_key: str | None = _env("OPENAI_API_KEY", "JOBAGENT_OPENAI_API_KEY", default=None)
 
     # Fetching / crawling (canonical: JOBAGENT_*, with fallbacks)
     use_playwright_default: bool = _env_bool("JOBAGENT_USE" "_PLAYWRIGHT", "USE" "_PLAYWRIGHT", default=True)
@@ -152,6 +154,11 @@ class Settings:
 
     # Paths
     output_dir: Path = Path(os.getenv("JOBAGENT_OUTPUT_DIR", "output"))
+    resumes_dir_name: str = os.getenv("JOBAGENT_RESUMES_DIR_NAME", "_resumes")
+    fetch_base_url: str | None = _env("JOBAGENT_FETCH_BASE_URL", default=None)
+
+    # Environment
+    env: str = (_env("JOBAGENT_ENV", default="dev") or "dev").lower()
     seeds_file: Path = Path(
         _env(
             "JOBAGENT_STEPSTONE" "_SEEDS_FILE",
@@ -165,3 +172,23 @@ class Settings:
 
 
 settings = Settings()
+
+
+def _validate_settings(s: Settings) -> None:
+    if s.env in ("prod", "production") and not s.database_url:
+        raise ValueError("JOBAGENT_DATABASE_URL must be set in production mode")
+
+    if not str(s.output_dir).strip():
+        raise ValueError("JOBAGENT_OUTPUT_DIR must not be empty")
+
+    if s.fetch_base_url:
+        parsed = urlparse(s.fetch_base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("JOBAGENT_FETCH_BASE_URL must be a valid http(s) URL")
+
+    llm_enrich_flag = os.getenv("JOBAGENT_USE_LLM_ENRICH", "").lower() == "true"
+    if (s.use_llm_scoring or llm_enrich_flag) and not s.openai_api_key:
+        raise ValueError("OPENAI_API_KEY is required when LLM features are enabled")
+
+
+_validate_settings(settings)

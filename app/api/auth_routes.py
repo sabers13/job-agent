@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.api.schemas import LoginRequest, LoginResponse, MeResponse, SignupRequest, SignupResponse
 from app.auth.constants import AUTH_COOKIE_NAME
@@ -10,18 +11,33 @@ from app.config.settings import settings
 from app.db.crud_profiles import seed_default_profiles_for_user
 from app.db.crud_users import create_user, get_user_by_email, get_user_by_id
 from app.db.models import User
-from app.db.session import db_session
+from app.db.session import db_session, is_transient_db_error, run_db_with_retries
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=SignupResponse, status_code=201)
 def signup(req: SignupRequest):
+    def _find(db):
+        return get_user_by_email(db, req.email)
+    try:
+        existing = run_db_with_retries(_find, max_retries=2, base_sleep=0.4)
+    except (OperationalError, DBAPIError) as exc:
+        if is_transient_db_error(exc):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "ok": False,
+                    "transient": True,
+                    "error_type": exc.__class__.__name__,
+                    "error": (str(exc)[:300] if str(exc) else ""),
+                },
+            )
+        raise
+
     with db_session() as db:
-        existing = get_user_by_email(db, req.email)
         if existing:
             raise HTTPException(status_code=409, detail="Email already registered")
-
         user = create_user(db, email=req.email, password_hash=hash_password(req.password))
         db.flush()
         seed_default_profiles_for_user(db, user.id)
@@ -31,25 +47,41 @@ def signup(req: SignupRequest):
 
 @router.post("/login", response_model=LoginResponse)
 def login(req: LoginRequest, response: Response):
-    with db_session() as db:
-        user = get_user_by_email(db, req.email)
-        if not user or not verify_password(req.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+    def _op(db):
+        return get_user_by_email(db, req.email)
 
-        token = create_access_token(subject=str(user.id))
-        response.set_cookie(
-            key=AUTH_COOKIE_NAME,
-            value=token,
-            httponly=True,
-            samesite="lax",
-            secure=False,  # set True when behind HTTPS
-            max_age=int(60 * settings.jwt_expires_min),
-            path="/",
+    try:
+        user = run_db_with_retries(_op, max_retries=2, base_sleep=0.4)
+    except (OperationalError, DBAPIError) as exc:
+        if is_transient_db_error(exc):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "ok": False,
+                    "transient": True,
+                    "error_type": exc.__class__.__name__,
+                    "error": (str(exc)[:300] if str(exc) else ""),
+                },
+            )
+        raise
+
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
         )
-        return LoginResponse(access_token=token)
+
+    token = create_access_token(subject=str(user.id))
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=False,  # set True when behind HTTPS
+        max_age=int(60 * settings.jwt_expires_min),
+        path="/",
+    )
+    return LoginResponse(access_token=token)
 
 
 @router.get("/me", response_model=MeResponse)

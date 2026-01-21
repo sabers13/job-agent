@@ -7,12 +7,16 @@
     body { font-family: sans-serif; margin: 0; padding: 1rem; }
     label { display: block; margin-top: 0.5rem; font-weight: bold; }
     input[type="text"] { width: 100%; box-sizing: border-box; }
+    textarea { width: 100%; box-sizing: border-box; }
     select { width: 100%; box-sizing: border-box; }
     #result { margin-top: 1rem; padding: 0.75rem; border: 1px solid #ccc; white-space: pre-wrap; }
     nav button { margin-right: 0.5rem; }
+    .card { border: 1px solid #ccc; padding: 0.75rem; margin-top: 0.75rem; }
+    .muted { color: #666; }
   </style>
 </head>
 <body>
+  <div id="health-banner" style="margin-bottom:0.75rem; padding:0.5rem 0.75rem; border:1px solid #ccc; display:none;"></div>
   <h1>Run job analysis</h1>
 
   <nav style="margin-bottom: 1rem;">
@@ -85,13 +89,133 @@
         Apply blocker cap (critical blockers cap score)
       </label>
 
-      <button type="submit" style="margin-top:0.75rem;">Start batch run</button>
+      <label>Execution mode
+        <select id="batch-orchestrator">
+          <option value="prefect_subprocess">Prefect (subprocess)</option>
+          <option value="prefect_inprocess">Prefect (in-process)</option>
+        </select>
+      </label>
+
+      <label>Seed URLs (optional; one per line)
+        <textarea id="batch-seed-urls" rows="4" placeholder="https://..."></textarea>
+      </label>
+
+      <button type="submit" id="start-batch-btn" style="margin-top:0.75rem;" disabled>Start batch run</button>
     </form>
 
-    <div id="batch-status" style="margin-top:0.5rem; color:#555;"></div>
-    <div style="margin-top:0.5rem;">
-      <strong>Logs:</strong>
-      <pre id="batch-log" style="border:1px solid #ccc; padding:0.5rem; height:250px; overflow:auto;"></pre>
+    <div class="card">
+      <strong>URL Pool maintenance (StepStone)</strong>
+      <div class="muted" style="margin-top:0.35rem;">
+        Removes URLs from the active pool that now show “Diese Stellenanzeige ist nicht mehr verfügbar”.
+        Removed URLs are archived into <code>url_pool_unavailable.jsonl</code>.
+      </div>
+
+      <div style="display:flex; gap:0.5rem; margin-top:0.6rem; flex-wrap: wrap;">
+        <button type="button" id="prune-pool-btn">Prune unavailable URLs</button>
+
+        <label style="margin:0; font-weight:normal;">
+          Max URLs
+          <input type="number" id="prune-max-urls" value="300" style="width:100px;" />
+        </label>
+
+        <label style="margin:0; font-weight:normal;">
+          Concurrency
+        <input type="number" id="prune-concurrency" value="1" min="1" max="2" step="1" style="width:80px;" />
+        </label>
+
+        <label style="margin:0; font-weight:normal;">
+          Timeout (sec)
+          <input type="number" id="prune-timeout" value="10" style="width:80px;" />
+        </label>
+      </div>
+
+      <div class="muted" id="prune-hint" style="margin-top:0.5rem;">
+        Recommended: concurrency 1–2. Higher values may trigger StepStone bot checks and abort the prune.
+      </div>
+    </div>
+
+    <div class="card">
+      <strong>Resume</strong>
+      <div class="muted" style="margin-top:0.35rem;">
+        Upload a resume (PDF/DOCX/TXT). One active resume is used for enrichment/scoring.
+      </div>
+      <div style="margin-top:0.6rem; display:flex; gap:0.5rem; flex-wrap: wrap; align-items:center;">
+        <input type="file" id="resume-file" />
+        <label style="margin:0; font-weight:normal;">
+          <input type="checkbox" id="resume-set-active" checked /> Set active
+        </label>
+        <button type="button" id="upload-resume-btn">Upload resume</button>
+      </div>
+      <div style="margin-top:0.6rem; display:flex; gap:0.5rem; flex-wrap: wrap; align-items:center;">
+        <select id="resume-select" style="min-width:220px;"></select>
+        <button type="button" id="activate-resume-btn">Set active</button>
+      </div>
+      <div class="muted" id="resume-status" style="margin-top:0.5rem;"></div>
+    </div>
+
+    <div class="card">
+      <strong>Run Status</strong>
+      <pre id="run-meta" class="muted" style="white-space: pre-wrap;"></pre>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <strong>Logs</strong>
+        <label style="margin:0; font-weight:normal;">
+          <input type="checkbox" id="auto-scroll" checked /> Auto-scroll
+        </label>
+        <button type="button" id="clear-logs-btn">Clear logs</button>
+      </div>
+      <pre id="batch-log" style="border:1px solid #ccc; padding:0.5rem; height:250px; overflow:auto; white-space: pre-wrap;"></pre>
+    </div>
+
+    <div class="card">
+      <strong>Summary</strong>
+      <pre id="summary-box" style="white-space: pre-wrap; min-height: 160px;"></pre>
+      <details>
+        <summary>analysis_summary.json</summary>
+        <pre id="analysis-box" style="white-space: pre-wrap;"></pre>
+      </details>
+    </div>
+
+    <div class="card" id="potential-card" style="display:none;">
+      <strong>Potential applications</strong>
+      <div class="muted" id="potential-meta" style="margin-top:0.25rem;"></div>
+      <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem; flex-wrap:wrap;">
+        <button type="button" id="potential-load-btn">Load list</button>
+        <button type="button" id="potential-refresh-btn">Refresh</button>
+        <label class="muted">Filter:
+          <input id="potential-filter" type="text" placeholder="company/title/url..." style="min-width:220px;" />
+        </label>
+        <label class="muted">Sort:
+          <select id="potential-sort">
+            <option value="llm_desc">LLM score ↓</option>
+            <option value="final_desc">Final score ↓</option>
+            <option value="final_asc">Final score ↑</option>
+            <option value="title_asc">Title A→Z</option>
+            <option value="company_asc">Company A→Z</option>
+          </select>
+        </label>
+      </div>
+      <div class="muted" id="potential-hint" style="margin-top:0.5rem;"></div>
+      <div style="overflow:auto; margin-top:0.5rem;">
+        <table style="border-collapse: collapse; width:100%; min-width:700px;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">final</th>
+              <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">llm</th>
+              <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">job</th>
+              <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">url</th>
+              <th style="text-align:left; padding:6px; border-bottom:1px solid #eee;">details</th>
+            </tr>
+          </thead>
+          <tbody id="potential-tbody"></tbody>
+        </table>
+      </div>
+      <details id="potential-details" style="margin-top:0.75rem; display:none;">
+        <summary>Selected item details (raw JSON)</summary>
+        <pre id="potential-details-box" class="box" style="white-space: pre-wrap;"></pre>
+      </details>
     </div>
   </section>
 
@@ -100,15 +224,140 @@
     let currentLogOffset = 0;
     let statusTimerId = null;
     let logTimerId = null;
+    let summaryFetched = false;
+    let potentialItems = [];
+    let potentialLoaded = false;
+    let potentialDetailsCache = {};
+    let lastHealth = null;
 
     async function apiFetch(url, opts = {}) {
-      const res = await fetch(url, { credentials: "same-origin", ...opts });
+      const res = await fetch(url, { credentials: "include", ...opts });
       if (res.status === 401 || res.status === 403) {
         const next = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/gui/login?next=${next}`;
         return null;
       }
       return res;
+    }
+
+    function _escHtml(s) {
+      if (s === null || s === undefined) return "";
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function _normNum(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function updatePotentialMetaUI(statusPayload, potCount) {
+      const card = document.getElementById("potential-card");
+      const meta = document.getElementById("potential-meta");
+      if (!card || !meta) return;
+
+      if (!statusPayload || !statusPayload.run_id || !statusPayload.output_root) {
+        card.style.display = "none";
+        return;
+      }
+
+      card.style.display = "block";
+      const cntTxt = potCount === null ? "count: (unknown until loaded)" : `count: ${potCount}`;
+      meta.textContent = `${cntTxt} · run_id=${statusPayload.run_id}`;
+    }
+
+    function getFilteredSortedPotentialItems() {
+      const filter = (document.getElementById("potential-filter")?.value || "")
+        .trim()
+        .toLowerCase();
+      const sort = document.getElementById("potential-sort")?.value || "llm_desc";
+
+      let items = potentialItems.slice();
+      if (filter) {
+        items = items.filter((it) => {
+          const hay = [it.title, it.company, it.location, it.url, it.job_key, it.reason]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(filter);
+        });
+      }
+
+      const byStr = (a, b) => String(a || "").localeCompare(String(b || ""));
+      const byNumDesc = (a, b) => (b ?? -1e18) - (a ?? -1e18);
+      const byNumAsc = (a, b) => (a ?? 1e18) - (b ?? 1e18);
+
+      items.sort((A, B) => {
+        const aFinal = _normNum(A.final_score);
+        const bFinal = _normNum(B.final_score);
+        const aLlm = _normNum(A.llm_score);
+        const bLlm = _normNum(B.llm_score);
+        if (sort === "llm_desc") return byNumDesc(aLlm, bLlm);
+        if (sort === "final_desc") return byNumDesc(aFinal, bFinal);
+        if (sort === "final_asc") return byNumAsc(aFinal, bFinal);
+        if (sort === "company_asc") return byStr(A.company, B.company);
+        return byStr(A.title, B.title);
+      });
+      return items;
+    }
+
+    function renderPotentialTable() {
+      const tbody = document.getElementById("potential-tbody");
+      if (!tbody) return;
+
+      const items = getFilteredSortedPotentialItems();
+      tbody.innerHTML = "";
+
+      const hint = document.getElementById("potential-hint");
+      if (hint) {
+        hint.textContent = potentialLoaded
+          ? `Showing ${items.length} of ${potentialItems.length} items.`
+          : "Click “Load list” to display items.";
+      }
+
+      const maxRows = 200;
+      items.slice(0, maxRows).forEach((it) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td style="padding:6px; border-bottom:1px solid #f3f3f3;">${_escHtml(
+            it.final_score ?? ""
+          )}</td>
+          <td style="padding:6px; border-bottom:1px solid #f3f3f3;">${_escHtml(
+            it.llm_score ?? ""
+          )}</td>
+          <td style="padding:6px; border-bottom:1px solid #f3f3f3;">
+            <div><strong>${_escHtml(it.title || it.job_key)}</strong></div>
+            <div class="muted">${_escHtml(it.company || "")}${
+              it.location ? " · " + _escHtml(it.location) : ""
+            }</div>
+          </td>
+          <td style="padding:6px; border-bottom:1px solid #f3f3f3;">
+            ${
+              it.url
+                ? `<a href="${_escHtml(it.url)}" target="_blank" rel="noreferrer">open</a>`
+                : ""
+            }
+          </td>
+          <td style="padding:6px; border-bottom:1px solid #f3f3f3;">
+            <button type="button" data-jobkey="${_escHtml(
+              it.job_key
+            )}" class="potential-details-btn">Details</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll(".potential-details-btn").forEach((btn) => {
+        btn.onclick = async (e) => {
+          const jk = e.target.getAttribute("data-jobkey");
+          if (!jk) return;
+          await togglePotentialDetails(jk);
+        };
+      });
     }
 
     async function loadProfilesCommon() {
@@ -126,6 +375,7 @@
 
       const singleSel = document.getElementById("profile-select");
       const batchSel = document.getElementById("batch-profile-select");
+      const startBtn = document.getElementById("start-batch-btn");
 
       function fillSelect(sel) {
         sel.innerHTML = "";
@@ -141,13 +391,42 @@
         profiles.forEach(p => {
           const opt = document.createElement("option");
           opt.value = p.key;
-          opt.textContent = p.profile_name + " (" + p.key + ")";
+          opt.textContent = (p.profile_name || p.key) + " (" + p.key + ")";
           sel.appendChild(opt);
         });
       }
 
       fillSelect(singleSel);
       fillSelect(batchSel);
+      startBtn.disabled = batchSel.disabled || !batchSel.value;
+    }
+
+    function setDisabled(selectorOrEl, disabled) {
+      const el =
+        typeof selectorOrEl === "string"
+          ? document.querySelector(selectorOrEl)
+          : selectorOrEl;
+      if (el) el.disabled = !!disabled;
+    }
+
+    function applyHealthToControls(h) {
+      const configOk = !!(h && h.config_ok);
+      const outputOk = h && h.output_ok !== false;
+      const dbOk = h && h.db_ok !== false;
+      const canRun = configOk && outputOk && dbOk;
+
+      setDisabled("#single-form button[type='submit']", !canRun);
+
+      const batchSel = document.getElementById("batch-profile-select");
+      const hasProfile = batchSel && !batchSel.disabled && !!batchSel.value;
+      setDisabled("#start-batch-btn", !(canRun && hasProfile));
+
+      setDisabled("#prune-pool-btn", !canRun);
+
+      setDisabled("#upload-resume-btn", !dbOk);
+      const resumeSel = document.getElementById("resume-select");
+      if (resumeSel) resumeSel.disabled = !dbOk;
+      setDisabled("#activate-resume-btn", !dbOk);
     }
 
     // Tab switching
@@ -168,18 +447,40 @@
         const res = await apiFetch("/api/run_status/" + encodeURIComponent(currentBatchRunId));
         if (!res) return;
         if (!res.ok) {
-          document.getElementById("batch-status").textContent = "Error fetching status.";
+          document.getElementById("run-meta").textContent = "Error fetching status.";
           return;
         }
         const data = await res.json();
-        const st = data.status;
-        let text = `run_id=${data.run_id} status=${st}`;
-        if (data.started_at) text += ` | started_at=${data.started_at}`;
-        if (data.finished_at) text += ` | finished_at=${data.finished_at}`;
-        if (data.error) text += ` | error=${data.error}`;
-        document.getElementById("batch-status").textContent = text;
+        const lines = [
+          `run_id: ${data.run_id}`,
+          `status: ${data.status}${data.stage ? " / stage: " + data.stage : ""}`,
+          data.started_at ? `started_at: ${data.started_at}` : null,
+          data.finished_at ? `finished_at: ${data.finished_at}` : null,
+          data.output_root ? `output_root: ${data.output_root}` : null,
+          data.summary_path ? `summary_path: ${data.summary_path}` : null,
+          data.return_codes ? `return_codes: ${JSON.stringify(data.return_codes)}` : null,
+          data.metrics && Object.keys(data.metrics).length
+            ? `metrics: ${JSON.stringify(data.metrics)}`
+            : null,
+          data.error ? `error: ${data.error}` : null,
+        ].filter(Boolean);
+        document.getElementById("run-meta").textContent = lines.join("\n");
+
+        try {
+          const potCount =
+            data.metrics && typeof data.metrics.potential_applications_count === "number"
+              ? data.metrics.potential_applications_count
+              : null;
+          updatePotentialMetaUI(data, potCount);
+        } catch (e) {
+          // no-op
+        }
+        if (data.status === "completed" || data.status === "failed") {
+          stopBatchStatusPolling();
+          fetchSummaryOnce();
+        }
       } catch (err) {
-        document.getElementById("batch-status").textContent = "Status error: " + err;
+        document.getElementById("run-meta").textContent = "Status error: " + err;
       }
     }
 
@@ -187,7 +488,7 @@
       if (!currentBatchRunId) return;
       const logEl = document.getElementById("batch-log");
       try {
-        const url = `/api/run_logs/${encodeURIComponent(currentBatchRunId)}?offset=${currentLogOffset}`;
+        const url = `/api/run_logs/${encodeURIComponent(currentBatchRunId)}?offset=${currentLogOffset}&max_bytes=4000`;
         const res = await apiFetch(url);
         if (!res) return;
         if (!res.ok) {
@@ -197,18 +498,15 @@
         const data = await res.json();
         if (data.chunk) {
           logEl.textContent += data.chunk;
-          logEl.scrollTop = logEl.scrollHeight;
+          if (document.getElementById("auto-scroll").checked) {
+            logEl.scrollTop = logEl.scrollHeight;
+          }
         }
-        currentLogOffset = data.next_offset;
+        if (typeof data.next_offset === "number") {
+          currentLogOffset = data.next_offset;
+        }
         if (data.finished) {
-          if (statusTimerId) {
-            clearInterval(statusTimerId);
-            statusTimerId = null;
-          }
-          if (logTimerId) {
-            clearInterval(logTimerId);
-            logTimerId = null;
-          }
+          stopBatchLogsPolling();
         }
       } catch (err) {
         logEl.textContent += `\n[Log error: ${err}]`;
@@ -216,24 +514,228 @@
     }
 
     function startBatchPollers() {
-      if (statusTimerId) clearInterval(statusTimerId);
-      if (logTimerId) clearInterval(logTimerId);
-      statusTimerId = setInterval(pollBatchStatus, 2000);
-      logTimerId = setInterval(pollBatchLogs, 1000);
+      stopBatchStatusPolling();
+      stopBatchLogsPolling();
+      statusTimerId = setInterval(pollBatchStatus, 1200);
+      logTimerId = setInterval(pollBatchLogs, 900);
     }
 
     function resetBatchView() {
       currentBatchRunId = null;
       currentLogOffset = 0;
+      summaryFetched = false;
+      potentialItems = [];
+      potentialLoaded = false;
+      potentialDetailsCache = {};
       document.getElementById("batch-log").textContent = "";
-      document.getElementById("batch-status").textContent = "";
+      document.getElementById("run-meta").textContent = "";
+      document.getElementById("summary-box").textContent = "";
+      document.getElementById("analysis-box").textContent = "";
+      document.getElementById("potential-tbody").innerHTML = "";
+      document.getElementById("potential-hint").textContent = "";
+      document.getElementById("potential-meta").textContent = "";
+      document.getElementById("potential-card").style.display = "none";
+      const details = document.getElementById("potential-details");
+      const detailsBox = document.getElementById("potential-details-box");
+      if (details) {
+        details.open = false;
+        details.style.display = "none";
+      }
+      if (detailsBox) detailsBox.textContent = "";
+      stopBatchStatusPolling();
+      stopBatchLogsPolling();
+    }
+
+    function monitorRun(runId) {
+      currentBatchRunId = runId;
+      currentLogOffset = 0;
+      summaryFetched = false;
+      potentialItems = [];
+      potentialLoaded = false;
+      potentialDetailsCache = {};
+      document.getElementById("batch-log").textContent = "";
+      document.getElementById("summary-box").textContent = "";
+      document.getElementById("analysis-box").textContent = "";
+      document.getElementById("potential-tbody").innerHTML = "";
+      document.getElementById("potential-hint").textContent = "";
+      document.getElementById("potential-meta").textContent = "";
+      document.getElementById("potential-card").style.display = "none";
+      const details = document.getElementById("potential-details");
+      const detailsBox = document.getElementById("potential-details-box");
+      if (details) {
+        details.open = false;
+        details.style.display = "none";
+      }
+      if (detailsBox) detailsBox.textContent = "";
+      document.getElementById("run-meta").textContent = "Monitoring run_id=" + runId;
+      startBatchPollers();
+    }
+
+    async function loadPotentialList(force = false) {
+      if (!currentBatchRunId) return;
+      if (potentialLoaded && !force) {
+        renderPotentialTable();
+        return;
+      }
+      const hint = document.getElementById("potential-hint");
+      if (hint) hint.textContent = "Loading potential list…";
+
+      const url = `/api/run_artifacts/${encodeURIComponent(
+        currentBatchRunId
+      )}/potential_applications?limit=500`;
+      const res = await apiFetch(url);
+      if (!res) return;
+      if (!res.ok) {
+        const txt = await res.text();
+        if (hint) hint.textContent = "Failed: " + res.status + " " + txt;
+        return;
+      }
+      const payload = await res.json();
+      potentialItems = payload.items || [];
+      potentialLoaded = true;
+      renderPotentialTable();
+    }
+
+    async function togglePotentialDetails(jobKey) {
+      if (!currentBatchRunId) return;
+      const details = document.getElementById("potential-details");
+      const box = document.getElementById("potential-details-box");
+      if (!details || !box) return;
+
+      details.style.display = "block";
+
+      if (details.dataset.jobKey === jobKey && details.open) {
+        details.open = false;
+        return;
+      }
+
+      details.dataset.jobKey = jobKey;
+      details.open = true;
+
+      if (potentialDetailsCache[jobKey]) {
+        box.textContent = JSON.stringify(potentialDetailsCache[jobKey], null, 2);
+        return;
+      }
+
+      box.textContent = "Loading details…";
+      const url = `/api/run_artifacts/${encodeURIComponent(
+        currentBatchRunId
+      )}/potential_applications/${encodeURIComponent(jobKey)}`;
+      const res = await apiFetch(url);
+      if (!res) return;
+      if (!res.ok) {
+        const txt = await res.text();
+        box.textContent = "Failed: " + res.status + " " + txt;
+        return;
+      }
+      const payload = await res.json();
+      potentialDetailsCache[jobKey] = payload;
+      box.textContent = JSON.stringify(payload, null, 2);
+    }
+
+    async function loadResumes() {
+      const statusEl = document.getElementById("resume-status");
+      try {
+        const res = await apiFetch("/api/my/resumes");
+        if (!res) return;
+        if (!res.ok) {
+          statusEl.textContent = "Failed to load resumes.";
+          return;
+        }
+        const data = await res.json();
+        const sel = document.getElementById("resume-select");
+        sel.innerHTML = "";
+        if (!data.length) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "No resumes uploaded";
+          sel.appendChild(opt);
+          sel.disabled = true;
+          return;
+        }
+        sel.disabled = false;
+        let activeLabel = "";
+        data.forEach((r) => {
+          const opt = document.createElement("option");
+          opt.value = r.id;
+          opt.textContent = r.filename + (r.is_active ? " (active)" : "");
+          sel.appendChild(opt);
+          if (r.is_active) {
+            activeLabel = r.filename;
+          }
+        });
+        statusEl.textContent = activeLabel ? "Active resume: " + activeLabel : "No active resume";
+      } catch (err) {
+        statusEl.textContent = "Resume load error: " + err;
+      }
+    }
+
+    async function loadHealthConfig() {
+      const banner = document.getElementById("health-banner");
+      try {
+        const res = await apiFetch("/health/config");
+        if (!res) return;
+        const data = await res.json();
+        lastHealth = data;
+        applyHealthToControls(data);
+        if (data.config_ok && data.db_ok !== false) {
+          banner.style.display = "none";
+          return;
+        }
+        const parts = [];
+        if (!data.config_ok) {
+          parts.push("Config issues detected");
+        }
+        if (data.db_ok === false) {
+          parts.push("Database unavailable");
+        }
+        if (data.output_ok === false) {
+          parts.push("Output root not writable");
+        }
+        if (data.errors && data.errors.length) {
+          parts.push("Errors: " + data.errors.join("; "));
+        }
+        banner.textContent = parts.join(" | ") || "Service not ready";
+        banner.style.display = "block";
+      } catch (err) {
+        banner.textContent = "Health check failed: " + err;
+        banner.style.display = "block";
+        applyHealthToControls({ config_ok: false, db_ok: false, output_ok: false });
+      }
+    }
+
+    function stopBatchStatusPolling() {
       if (statusTimerId) {
         clearInterval(statusTimerId);
         statusTimerId = null;
       }
+    }
+
+    function stopBatchLogsPolling() {
       if (logTimerId) {
         clearInterval(logTimerId);
         logTimerId = null;
+      }
+    }
+
+    async function fetchSummaryOnce() {
+      if (!currentBatchRunId || summaryFetched) return;
+      summaryFetched = true;
+      try {
+        const res = await apiFetch(`/api/run_summary/${encodeURIComponent(currentBatchRunId)}`);
+        if (!res) return;
+        if (!res.ok) {
+          document.getElementById("summary-box").textContent = "Failed to load summary.";
+          return;
+        }
+        const data = await res.json();
+        document.getElementById("summary-box").textContent =
+          data.summary_md || "(No summary produced for this run.)";
+        document.getElementById("analysis-box").textContent = data.analysis_summary
+          ? JSON.stringify(data.analysis_summary, null, 2)
+          : "(No analysis_summary.json)";
+      } catch (err) {
+        document.getElementById("summary-box").textContent = "Failed to load summary: " + err;
       }
     }
 
@@ -296,8 +798,9 @@
       const useEnrich = document.getElementById("batch-use-enrich").checked;
       const useLlmScoring = document.getElementById("batch-use-llm-scoring").checked;
       const applyBlockerCap = document.getElementById("batch-apply-blocker-cap").checked;
-      const statusEl = document.getElementById("batch-status");
+      const orchestrator = document.getElementById("batch-orchestrator").value;
       const logEl = document.getElementById("batch-log");
+      const seedUrlsEl = document.getElementById("batch-seed-urls");
 
       if (!profileKey) {
         alert("Please select a profile.");
@@ -305,7 +808,7 @@
       }
 
       resetBatchView();
-      statusEl.textContent = "Starting batch run...";
+      document.getElementById("run-meta").textContent = "Starting batch run...";
       logEl.textContent = "";
       try {
         const body = {
@@ -314,7 +817,14 @@
           use_llm_enrich: useEnrich,
           use_llm_scoring: useLlmScoring,
           apply_blocker_cap: applyBlockerCap,
+          orchestrator: orchestrator,
         };
+        if (seedUrlsEl && seedUrlsEl.value.trim()) {
+          body.seed_urls = seedUrlsEl.value
+            .split("\n")
+            .map(v => v.trim())
+            .filter(Boolean);
+        }
         const res = await apiFetch("/api/start_batch_run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -323,21 +833,139 @@
         if (!res) return;
         if (!res.ok) {
           const txt = await res.text();
-          statusEl.textContent = "Error: " + res.status + " " + txt;
+          document.getElementById("run-meta").textContent = "Error: " + res.status + " " + txt;
           return;
         }
         const data = await res.json();
         currentBatchRunId = data.run_id;
         currentLogOffset = 0;
-        statusEl.textContent = "Run started. run_id=" + data.run_id + " (status=" + data.status + ")";
+        summaryFetched = false;
+        document.getElementById("run-meta").textContent = "Run started. run_id=" + data.run_id + " (status=" + data.status + ")";
         startBatchPollers();
       } catch (err) {
-        statusEl.textContent = "Error: " + err;
+        document.getElementById("run-meta").textContent = "Error: " + err;
       }
     };
 
     // Initial load
     loadProfilesCommon();
+    loadResumes();
+    loadHealthConfig();
+    const HEALTH_POLL_MS = 5000;
+    setInterval(loadHealthConfig, HEALTH_POLL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) loadHealthConfig();
+    });
+    document.getElementById("batch-profile-select").addEventListener("change", (e) => {
+      const hasProfile = !!e.target.value;
+      const canRun =
+        lastHealth && lastHealth.config_ok && lastHealth.output_ok !== false && lastHealth.db_ok !== false;
+      document.getElementById("start-batch-btn").disabled = !(hasProfile && canRun);
+    });
+    document.getElementById("clear-logs-btn").addEventListener("click", () => {
+      document.getElementById("batch-log").textContent = "";
+    });
+    document.getElementById("potential-load-btn").onclick = () => loadPotentialList(false);
+    document.getElementById("potential-refresh-btn").onclick = () => {
+      potentialLoaded = false;
+      potentialDetailsCache = {};
+      loadPotentialList(true);
+    };
+    document.getElementById("potential-filter").oninput = () => renderPotentialTable();
+    document.getElementById("potential-sort").onchange = () => renderPotentialTable();
+    document.getElementById("prune-pool-btn").addEventListener("click", async () => {
+      const profileKey = document.getElementById("batch-profile-select").value;
+      if (!profileKey) {
+        alert("Please select a profile first.");
+        return;
+      }
+
+      const maxUrls = parseInt(document.getElementById("prune-max-urls").value || "300", 10);
+      const concurrencyRaw = parseInt(document.getElementById("prune-concurrency").value || "1", 10);
+      const concurrency = Math.max(1, Math.min(2, concurrencyRaw));
+      document.getElementById("prune-concurrency").value = String(concurrency);
+      const timeoutSec = parseFloat(document.getElementById("prune-timeout").value || "10");
+
+      document.getElementById("prune-hint").textContent = "Starting pool prune…";
+      resetBatchView();
+      document.getElementById("run-meta").textContent = "Starting URL pool maintenance…";
+
+      try {
+        const res = await apiFetch(`/api/my/profile/${encodeURIComponent(profileKey)}/url_pool/prune_stepstone`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            max_urls: maxUrls,
+            concurrency: concurrency,
+            timeout_sec: timeoutSec,
+          }),
+        });
+        if (!res) return;
+        if (!res.ok) {
+          const txt = await res.text();
+          document.getElementById("prune-hint").textContent = "Failed to start: " + res.status + " " + txt;
+          document.getElementById("run-meta").textContent = "Failed to start maintenance run.";
+          return;
+        }
+        const data = await res.json();
+        document.getElementById("prune-hint").textContent = "Prune started. run_id=" + data.run_id;
+        monitorRun(data.run_id);
+      } catch (err) {
+        document.getElementById("prune-hint").textContent = "Error: " + err;
+      }
+    });
+    document.getElementById("upload-resume-btn").addEventListener("click", async () => {
+      const fileInput = document.getElementById("resume-file");
+      const statusEl = document.getElementById("resume-status");
+      if (!fileInput.files || !fileInput.files.length) {
+        alert("Please choose a resume file.");
+        return;
+      }
+      const setActive = document.getElementById("resume-set-active").checked;
+      const data = new FormData();
+      data.append("file", fileInput.files[0]);
+      data.append("set_active", setActive ? "true" : "false");
+      statusEl.textContent = "Uploading resume…";
+      try {
+        const res = await apiFetch("/api/my/resume", { method: "POST", body: data });
+        if (!res) return;
+        if (!res.ok) {
+          const txt = await res.text();
+          statusEl.textContent = "Upload failed: " + res.status + " " + txt;
+          return;
+        }
+        const payload = await res.json();
+        statusEl.textContent = "Uploaded: " + payload.filename;
+        fileInput.value = "";
+        loadResumes();
+      } catch (err) {
+        statusEl.textContent = "Upload error: " + err;
+      }
+    });
+    document.getElementById("activate-resume-btn").addEventListener("click", async () => {
+      const sel = document.getElementById("resume-select");
+      const statusEl = document.getElementById("resume-status");
+      if (!sel.value) {
+        alert("Select a resume to activate.");
+        return;
+      }
+      statusEl.textContent = "Setting active resume…";
+      try {
+        const res = await apiFetch(`/api/my/resume/${encodeURIComponent(sel.value)}/activate`, {
+          method: "POST",
+        });
+        if (!res) return;
+        if (!res.ok) {
+          const txt = await res.text();
+          statusEl.textContent = "Activate failed: " + res.status + " " + txt;
+          return;
+        }
+        statusEl.textContent = "Active resume updated.";
+        loadResumes();
+      } catch (err) {
+        statusEl.textContent = "Activate error: " + err;
+      }
+    });
   </script>
 </body>
 </html>

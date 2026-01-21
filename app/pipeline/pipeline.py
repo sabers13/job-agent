@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from loguru import logger
@@ -161,10 +163,28 @@ async def fetch_job_details(
     return result
 
 
-def write_job_bundle(job: Dict[str, Any], scoring: Optional[Dict[str, Any]] = None, *, seed_slug: Optional[str] = None, enrichment_meta: Optional[Dict[str, Any]] = None) -> str:
+def write_job_bundle(
+    job: Dict[str, Any],
+    scoring: Optional[Dict[str, Any]] = None,
+    *,
+    seed_slug: Optional[str] = None,
+    enrichment_meta: Optional[Dict[str, Any]] = None,
+    category: Optional[str] = None,
+) -> str:
     """
     Generate assets for a job posting and persist them to disk.
     Returns the directory path where the bundle was written.
     """
     assets = generate_bundle(job, scoring)
-    return write_bundle("output", job, assets, scoring, seed_slug=seed_slug, enrichment_meta=enrichment_meta)
+    base_root = os.getenv("JOBAGENT_OUTPUT_ROOT")
+    root = Path(base_root) if base_root else settings.output_dir
+    bundle_root = root / "bundles"
+    return write_bundle(
+        str(bundle_root),
+        job,
+        assets,
+        scoring,
+        seed_slug=seed_slug,
+        enrichment_meta=enrichment_meta,
+        category=category,
+    )

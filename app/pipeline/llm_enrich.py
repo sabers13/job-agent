@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json, re
+import os
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, Tuple
 from openai import OpenAI
@@ -79,6 +80,25 @@ def _safe_jsonable(obj):
     return obj
 
 
+def _load_resume_snapshot() -> Optional[Dict[str, Any]]:
+    path = os.getenv("JOBAGENT_RESUME_SNAPSHOT")
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return None
+    parsed = data.get("parsed_json")
+    excerpt = data.get("text_excerpt") or ""
+    return {
+        "resume_id": data.get("resume_id"),
+        "sha256": data.get("sha256"),
+        "parsed_json": parsed,
+        "text_excerpt": excerpt[:4000],
+    }
+
+
 def _build_user_prompt(job: Dict[str, Any], focus=DEFAULT_FOCUS) -> str:
     title = job.get("title") or "Unknown"
     company = job.get("company") or "Unknown"
@@ -99,8 +119,16 @@ def _build_user_prompt(job: Dict[str, Any], focus=DEFAULT_FOCUS) -> str:
         "url": job.get("url"),
         "focus": focus_payload,
     }
+    resume_ctx = _load_resume_snapshot()
+    resume_block = ""
+    if resume_ctx:
+        resume_block = (
+            "\n\nResume CONTEXT:\n"
+            f"{json.dumps(resume_ctx, ensure_ascii=False, indent=2)}"
+        )
     return f"""Job META:
 {json.dumps(meta, ensure_ascii=False, indent=2)}
+{resume_block}
 
 Job DESCRIPTION (text):
 \"\"\"
@@ -208,6 +236,9 @@ def llm_score_job(job: Dict[str, Any], focus: Any, heuristic_result: Dict[str, A
             "meta": heuristic_result.get("meta", {}),
         },
     }
+    resume_ctx = _load_resume_snapshot()
+    if resume_ctx:
+        payload["resume_context"] = resume_ctx
 
     system_prompt = (
         "You are an assistant that evaluates how well a job fits a specific candidate.\n"

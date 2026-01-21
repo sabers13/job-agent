@@ -191,15 +191,15 @@ def get_focus_profile_model_for_user(
         data = raw
 
     if isinstance(data, dict):
-        data["profile_name"] = prof.profile_name or data.get("profile_name") or profile_key
-        data["description"] = prof.description or data.get("description")
+        data["profile_name"] = getattr(prof, "profile_name", None) or data.get("profile_name") or profile_key
+        data["description"] = getattr(prof, "description", None) or data.get("description")
         data["profile_key"] = prof.profile_key
         data.setdefault("search_seeds", [])
     else:
         data = {
             "profile_key": prof.profile_key,
-            "profile_name": prof.profile_name or profile_key,
-            "description": prof.description,
+            "profile_name": getattr(prof, "profile_name", None) or profile_key,
+            "description": getattr(prof, "description", None),
             "search_seeds": [],
         }
 

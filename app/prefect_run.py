@@ -19,11 +19,12 @@ from .pipeline.state import load_state, save_state
 from .stepstone.search_http import search_stepstone
 from .stepstone.search_playwright import search_stepstone_pw
 from .pipeline.output import write_summary
+from .pipeline.url_pool import append_pool_entries, load_pool_set, normalize_url, pool_path_for_profile
 from .common.utils import ensure_dir
 from .stepstone.dates import parse_iso8601_utc
 
 load_dotenv()
-RUNS_BASE_DIR = Path("output") / "runs"
+RUNS_BASE_DIR = settings.output_dir / "runs"
 
 
 @dataclass
@@ -238,19 +239,34 @@ def _process_job_task(
         )
 
     score_val = scoring.get("score") if isinstance(scoring, dict) else None
-    if score_val is not None and score_val < settings.score_keep_threshold:
+    llm_score = scoring.get("llm_score") if isinstance(scoring, dict) else None
+    keep_threshold = settings.score_keep_threshold
+    is_potential = (
+        score_val is not None
+        and score_val < keep_threshold
+        and llm_score is not None
+        and float(llm_score) >= float(keep_threshold)
+    )
+    if score_val is not None and score_val < keep_threshold and not is_potential:
         return {
             "url": url,
             "seed_slug": seed_slug,
             "status": "rejected_low_score",
             "details": details,
-            "threshold": settings.score_keep_threshold,
+            "threshold": keep_threshold,
             "profile_key": profile_key,
             "backend": backend,
+            "score": score_val,
+            "llm_score": llm_score,
         }
 
     try:
-        bundle_dir = write_job_bundle(job, scoring, seed_slug=seed_slug)
+        bundle_dir = write_job_bundle(
+            job,
+            scoring,
+            seed_slug=seed_slug,
+            category="potential_applications" if is_potential else None,
+        )
     except Exception as exc:
         return {
             "url": url,
@@ -265,11 +281,14 @@ def _process_job_task(
     return {
         "url": url,
         "seed_slug": seed_slug,
-        "status": "processed",
+        "status": "processed_potential" if is_potential else "processed",
         "details": details,
         "bundle_dir": bundle_dir,
         "profile_key": profile_key,
         "backend": backend,
+        "threshold": keep_threshold,
+        "score": score_val,
+        "llm_score": llm_score,
     }
 
 
@@ -278,16 +297,18 @@ def crawl_and_save_flow(
     seeds: Optional[Sequence[SeedConfig]] = None,
     *,
     list_cutoff_iso: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Crawl StepStone listing pages for the configured seeds and persist one JSON
-    file per seed under output/runs/<timestamp>.
+    file per seed under the active run output directory.
     """
     logger = get_run_logger()
     seed_configs = _resolve_seed_configs(seeds)
     state = _load_state_task()
-    timestamp = _iso_timestamp()
-    run_dir = RUNS_BASE_DIR / timestamp
+    timestamp = run_id or os.getenv("JOBAGENT_RUN_ID") or _iso_timestamp()
+    forced_root = os.getenv("JOBAGENT_OUTPUT_ROOT")
+    run_dir = Path(forced_root) if forced_root else (RUNS_BASE_DIR / timestamp)
     ensure_dir(run_dir)
 
     logger.info(f"Starting crawl run: {timestamp}")
@@ -303,7 +324,7 @@ def crawl_and_save_flow(
     new_state = {
         **state,
         "last_run": timestamp,
-        "run_dir": f"runs/{timestamp}",
+        "run_dir": str(run_dir),
     }
     _save_state_task(new_state)
     logger.info("Crawl run complete. State updated.")
@@ -318,6 +339,7 @@ def process_run_flow(
     backend: str = "auto",
     use_llm_scoring: Optional[bool] = None,
     apply_blocker_cap: Optional[bool] = None,
+    run_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Load the latest crawl run, deduplicate job URLs, then fetch job details and
@@ -341,14 +363,22 @@ def process_run_flow(
         cutoff_iso,
     )
 
-    state = _load_state_task()
-    run_dir_value = state.get("run_dir")
-    if not run_dir_value:
-        raise RuntimeError("run_state has no run_dir. Run crawl_and_save_flow first.")
+    forced_root = os.getenv("JOBAGENT_OUTPUT_ROOT")
+    if forced_root:
+        run_path = Path(forced_root)
+    else:
+        forced = run_id or os.getenv("JOBAGENT_RUN_ID")
+        if forced:
+            run_path = RUNS_BASE_DIR / forced
+        else:
+            state = _load_state_task()
+            run_dir_value = state.get("run_dir")
+            if not run_dir_value:
+                raise RuntimeError("run_state has no run_dir. Run crawl_and_save_flow first.")
 
-    run_path = Path(run_dir_value)
-    if not run_path.is_absolute():
-        run_path = RUNS_BASE_DIR.parent / run_dir_value
+            run_path = Path(run_dir_value)
+            if not run_path.is_absolute():
+                run_path = RUNS_BASE_DIR.parent / run_dir_value
     if not run_path.exists():
         raise FileNotFoundError(f"Run directory not found: {run_path}")
 
@@ -386,8 +416,25 @@ def process_run_flow(
                 queue.append({"url": url, "seed_slug": slug})
 
     logger.info(f"Collected {len(queue)} unique URLs to process")
-    processed: List[Dict[str, Any]] = []
+
+    profile_dir = run_path.parent
+    pool_path = pool_path_for_profile(profile_dir)
+    pool_set = load_pool_set(pool_path)
+    pool_size_before = len(pool_set)
+
+    accepted: List[Dict[str, Any]] = []
     for item in queue:
+        url_norm = normalize_url(item.get("url") or "")
+        item["url_norm"] = url_norm
+        if not url_norm or url_norm in pool_set:
+            continue
+        accepted.append(item)
+
+    skipped_pool_existing = len(queue) - len(accepted)
+    logger.info(f"Skipping {skipped_pool_existing} URLs already in pool")
+
+    processed: List[Dict[str, Any]] = []
+    for item in accepted:
         result = _process_job_task(
             item["url"],
             item["seed_slug"],
@@ -420,7 +467,7 @@ def process_run_flow(
 
     reports: List[Dict[str, Any]] = []
     for result in processed:
-        if result.get("status") != "processed":
+        if result.get("status") not in ("processed", "processed_potential"):
             continue
         details = result.get("details") or {}
         reports.append(
@@ -430,10 +477,6 @@ def process_run_flow(
                 "output_dir": result.get("bundle_dir"),
             }
         )
-
-    summary_path = None
-    if reports:
-        summary_path = write_summary(reports, str(run_path))
 
     analysis_entries: List[Dict[str, Any]] = []
     for res in processed:
@@ -471,10 +514,65 @@ def process_run_flow(
     except Exception as exc:
         logger.warning("Failed to write analysis summary: %s", exc)
 
+    terminal_statuses = {"processed", "processed_potential", "stale", "rejected_low_score"}
+    pool_urls = []
+    for res in processed:
+        status = res.get("status")
+        url_val = res.get("url")
+        if status in terminal_statuses and url_val:
+            pool_urls.append(url_val)
+    run_id_label = run_id or os.getenv("JOBAGENT_RUN_ID") or run_path.name
+    append_pool_entries(pool_path, pool_urls, run_id=run_id_label)
+    pool_set.update({normalize_url(url) for url in pool_urls if normalize_url(url)})
+
+    status_counts = {
+        "processed": 0,
+        "processed_potential": 0,
+        "stale": 0,
+        "rejected_low_score": 0,
+        "error": 0,
+        "bundle_failed": 0,
+    }
+    for res in processed:
+        status = res.get("status")
+        if status in status_counts:
+            status_counts[status] += 1
+
+    run_metrics = {
+        "discovered_total": len(queue),
+        "skipped_pool_existing": skipped_pool_existing,
+        "accepted_new": len(accepted),
+        "pool_size_before": pool_size_before,
+        "pool_size_after": len(pool_set),
+        **status_counts,
+    }
+    potential_urls = [
+        res.get("url")
+        for res in processed
+        if res.get("status") == "processed_potential" and res.get("url")
+    ]
+    run_metrics["potential_applications_count"] = len(potential_urls)
+    run_metrics["potential_applications_urls"] = potential_urls
+    if potential_urls:
+        run_metrics["potential_applications_path"] = str(run_path / "potential_applications")
+    else:
+        run_metrics["potential_applications_path"] = None
+    metrics_path = run_path / "run_metrics.json"
+    try:
+        metrics_path.write_text(json.dumps(run_metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info(f"Wrote run metrics to {metrics_path}")
+    except Exception as exc:
+        logger.warning("Failed to write run metrics: %s", exc)
+
+    summary_path = None
+    if reports:
+        summary_path = write_summary(reports, str(run_path), metrics=run_metrics)
+
     flow_output = {
         "results": processed,
         "summary_path": summary_path,
         "analysis_summary_path": str(analysis_path),
+        "run_metrics_path": str(metrics_path),
     }
 
     try:
@@ -511,6 +609,12 @@ def _parse_cli_args() -> argparse.Namespace:
         default=None,
         help="Alternative to --list-cutoff-iso: persist listings newer than this many days.",
     )
+    crawl_parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Force run directory name (e.g., FastAPI run_id).",
+    )
 
     process_parser = sub.add_parser("process", help="Run the process_run_flow.")
     process_parser.add_argument("--cutoff-iso", type=str, default=None, help="ISO8601 cutoff date for stale detection.")
@@ -537,6 +641,12 @@ def _parse_cli_args() -> argparse.Namespace:
     cap_group.add_argument("--apply-blocker-cap", dest="apply_blocker_cap", action="store_true")
     cap_group.add_argument("--no-apply-blocker-cap", dest="apply_blocker_cap", action="store_false")
     process_parser.set_defaults(apply_blocker_cap=None)
+    process_parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Process a specific run directory name.",
+    )
 
     return parser.parse_args()
 
@@ -557,7 +667,7 @@ def _cli_entry() -> None:
                 list_cutoff_iso = cutoff_dt.isoformat(timespec="seconds").replace("+00:00", "Z")
             except Exception:
                 pass
-        crawl_and_save_flow(seeds=seeds, list_cutoff_iso=list_cutoff_iso)
+        crawl_and_save_flow(seeds=seeds, list_cutoff_iso=list_cutoff_iso, run_id=args.run_id)
     elif args.command == "process":
         process_run_flow(
             cutoff_iso=args.cutoff_iso,
@@ -565,6 +675,7 @@ def _cli_entry() -> None:
             backend=args.backend,
             use_llm_scoring=args.use_llm_scoring,
             apply_blocker_cap=args.apply_blocker_cap,
+            run_id=args.run_id,
         )
     else:
         raise ValueError(f"Unsupported command {args.command}")

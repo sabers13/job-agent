@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -37,6 +38,44 @@ class User(Base):
     runs: Mapped[list["Run"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    resumes: Mapped[list["Resume"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class Resume(Base):
+    __tablename__ = "resumes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UNIQUEIDENTIFIER(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    text_content: Mapped[str | None] = mapped_column(UnicodeText(), nullable=True)
+    parsed_json: Mapped[str | None] = mapped_column(UnicodeText(), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.sysdatetimeoffset(),
+        onupdate=func.sysdatetimeoffset(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(back_populates="resumes")
+
+    __table_args__ = (
+        Index("ix_resumes_user_sha256", "user_id", "sha256"),
+        Index("ix_resumes_user_active", "user_id", "is_active"),
+    )
 
 
 class Profile(Base):
@@ -49,7 +88,7 @@ class Profile(Base):
         UNIQUEIDENTIFIER(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     profile_key: Mapped[str] = mapped_column(String(64), nullable=False)
-    profile_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    profile_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
     focus_config_json: Mapped[str] = mapped_column(UnicodeText(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
