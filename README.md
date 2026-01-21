@@ -20,6 +20,12 @@ This project can be run:
 
 ---
 
+## Alternative Orchestration (n8n)
+
+If you prefer **n8n** over Prefect, there is a partial workflow prototype under `n8n workflows/`. It is not a complete replacement yet, but you can use it as a starting point and extend it to run the same crawl/process steps via n8n.
+
+---
+
 ## How You Run It (Two-Terminal Requirement)
 
 You will typically keep **two terminals running**:
