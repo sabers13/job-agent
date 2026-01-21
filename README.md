@@ -288,5 +288,3 @@ Prefect server is not running or `PREFECT_API_URL` is wrong.
 ### DB container “Up” but app DB health fails
 
 Connectivity may be fine but your `/health/db` endpoint can still fail if the check function is broken. Validate DB independently with a simple SQLAlchemy query.
-
-

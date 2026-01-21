@@ -31,3 +31,10 @@ output/
 .env.*
 !.env.example
 !.env.dev.example
+
+# Local-only files
+cv_complete.html
+prompt.md
+temp.md
+scripts/2025-11-04T042041Z/
+scripts/2025-11-14T061336Z/
