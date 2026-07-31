@@ -45,6 +45,7 @@ def is_transient_db_error(exc: BaseException) -> bool:
     haystack = " | ".join(parts).lower()
     return any(h.lower() in haystack for h in _TRANSIENT_HINTS)
 
+
 def run_db_with_retries(
     op: Callable[[Session], T],
     *,

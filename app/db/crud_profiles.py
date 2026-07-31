@@ -143,7 +143,9 @@ def upsert_profile_for_user(
         existing.focus_config_json = profile_json
         db.flush()
         return existing
-    return create_profile_for_user(db, user_id, profile_key, profile_name, description, profile_json)
+    return create_profile_for_user(
+        db, user_id, profile_key, profile_name, description, profile_json
+    )
 
 
 def delete_profile_for_user(db: Session, user_id: uuid.UUID, profile_key: str) -> bool:
@@ -191,7 +193,9 @@ def get_focus_profile_model_for_user(
         data = raw
 
     if isinstance(data, dict):
-        data["profile_name"] = getattr(prof, "profile_name", None) or data.get("profile_name") or profile_key
+        data["profile_name"] = (
+            getattr(prof, "profile_name", None) or data.get("profile_name") or profile_key
+        )
         data["description"] = getattr(prof, "description", None) or data.get("description")
         data["profile_key"] = prof.profile_key
         data.setdefault("search_seeds", [])

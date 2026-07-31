@@ -85,8 +85,14 @@ LANG_PATTERNS = [
     (r"\b(in wort und schrift)\b", None, 0.2),
 ]
 
-GERMAN_HEAVY_CONTEXT = re.compile(r"\b(kunde|kundenkontakt|beratung|berater|consultant|vertrieb|stakeholder|workshop)\b", re.IGNORECASE)
-PUBLIC_SECTOR = re.compile(r"\b(behörde|amt|öffentliche(r|n)? dienst|verwaltung|klin(ik|ikum)|schule|schulen)\b", re.IGNORECASE)
+GERMAN_HEAVY_CONTEXT = re.compile(
+    r"\b(kunde|kundenkontakt|beratung|berater|consultant|vertrieb|stakeholder|workshop)\b",
+    re.IGNORECASE,
+)
+PUBLIC_SECTOR = re.compile(
+    r"\b(behörde|amt|öffentliche(r|n)? dienst|verwaltung|klin(ik|ikum)|schule|schulen)\b",
+    re.IGNORECASE,
+)
 
 _YEARS_PENALTY = [
     (5, -25),
@@ -121,12 +127,14 @@ def _location_matches_focus(title: str, loc: str, focus) -> bool:
     return bool(hits)
 
 
-def classify_blockers(*, job: Dict[str, Any], focus, llm_part: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def classify_blockers(
+    *, job: Dict[str, Any], focus, llm_part: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
     hard: List[str] = []
     soft: List[str] = []
 
-    title = (job.get("title") or "")
-    loc = (job.get("location") or "")
+    title = job.get("title") or ""
+    loc = job.get("location") or ""
 
     # --- Relocation hard blocker (profile-driven) ---
     relocation_ok = bool(getattr(focus, "relocation_ok", True))
@@ -172,7 +180,9 @@ def classify_blockers(*, job: Dict[str, Any], focus, llm_part: Optional[Dict[str
     }
 
 
-def apply_blocker_caps(*, score: float, focus, blockers: Dict[str, Any], enabled: bool) -> Dict[str, Any]:
+def apply_blocker_caps(
+    *, score: float, focus, blockers: Dict[str, Any], enabled: bool
+) -> Dict[str, Any]:
     hard = blockers.get("hard") or []
     soft = blockers.get("soft") or []
 
@@ -211,6 +221,7 @@ def apply_blocker_caps(*, score: float, focus, blockers: Dict[str, Any], enabled
         "cap_reason": cap_reason,
     }
 
+
 def _contains_any(text: str, words: List[str]) -> List[str]:
     hits = []
     low = text.lower()
@@ -219,7 +230,8 @@ def _contains_any(text: str, words: List[str]) -> List[str]:
             hits.append(w)
     return hits
 
-def _count_keywords(text: str, keywords: List[str]) -> Dict[str,int]:
+
+def _count_keywords(text: str, keywords: List[str]) -> Dict[str, int]:
     low = text.lower()
     counts = {}
     for k in keywords:
@@ -236,6 +248,7 @@ def _count_keywords(text: str, keywords: List[str]) -> Dict[str,int]:
         counts[k] = c
     return counts
 
+
 def _clamp_confidence(value: Any) -> float:
     try:
         conf = float(value)
@@ -243,9 +256,14 @@ def _clamp_confidence(value: Any) -> float:
         conf = 0.0
     return max(0.0, min(1.0, conf))
 
+
 def _guess_post_language(text_lower: str) -> str:
-    german_hits = len(re.findall(r"\b(und|der|die|das|nicht|ist|mit|für|den|des|auf|zu|vom|nach)\b", text_lower)) + len(re.findall(r"[äöüß]", text_lower))
-    english_hits = len(re.findall(r"\b(the|and|with|for|not|is|are|will|from|into|of|in)\b", text_lower))
+    german_hits = len(
+        re.findall(r"\b(und|der|die|das|nicht|ist|mit|für|den|des|auf|zu|vom|nach)\b", text_lower)
+    ) + len(re.findall(r"[äöüß]", text_lower))
+    english_hits = len(
+        re.findall(r"\b(the|and|with|for|not|is|are|will|from|into|of|in)\b", text_lower)
+    )
     if german_hits == 0 and english_hits == 0:
         return "Unknown"
     if german_hits > english_hits * 1.5:
@@ -253,6 +271,7 @@ def _guess_post_language(text_lower: str) -> str:
     if english_hits > german_hits * 1.5:
         return "English"
     return "Mixed"
+
 
 def _regex_guess_german(text_lower: str) -> Optional[Dict[str, Any]]:
     for pattern, level, conf in LANG_PATTERNS:
@@ -282,20 +301,25 @@ def _regex_guess_german(text_lower: str) -> Optional[Dict[str, Any]]:
         }
     return None
 
-def _fallback_language_items(text_lower: str, english_hint: bool, english_evidence: Optional[str]) -> List[Dict[str, Any]]:
+
+def _fallback_language_items(
+    text_lower: str, english_hint: bool, english_evidence: Optional[str]
+) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     german_guess = _regex_guess_german(text_lower)
     if german_guess:
         items.append(german_guess)
     if english_hint:
-        items.append({
-            "language": "English",
-            "cefr_guess": "B2",
-            "confidence": 0.7,
-            "evidence_phrases": [english_evidence] if english_evidence else [],
-            "customer_facing": False,
-            "job_post_language": "Unknown",
-        })
+        items.append(
+            {
+                "language": "English",
+                "cefr_guess": "B2",
+                "confidence": 0.7,
+                "evidence_phrases": [english_evidence] if english_evidence else [],
+                "customer_facing": False,
+                "job_post_language": "Unknown",
+            }
+        )
     return items
 
 
@@ -326,7 +350,10 @@ def resolve_language_items(
         items = [
             it
             for it in items
-            if not (str(it.get("language", "")).lower().startswith("ger") and str(it.get("source", "")).lower() == "legacy_field")
+            if not (
+                str(it.get("language", "")).lower().startswith("ger")
+                and str(it.get("source", "")).lower() == "legacy_field"
+            )
         ]
         items.append(
             {
@@ -359,14 +386,23 @@ def resolve_language_items(
         }
         items = [it for it in items if not str(it.get("language", "")).lower().startswith("ger")]
         items.append(german)
-        return items, {"source": "llm", "level": llm_level, "type": llm_type, "evidence": german["evidence_phrases"]}
+        return items, {
+            "source": "llm",
+            "level": llm_level,
+            "type": llm_type,
+            "evidence": german["evidence_phrases"],
+        }
 
     # ----- 2) Regex -----
     regex_guess = _regex_guess_german(text_lower)
     if regex_guess:
         items = [it for it in items if not str(it.get("language", "")).lower().startswith("ger")]
         items.append(regex_guess)
-        return items, {"source": "regex", "level": regex_guess.get("cefr_guess"), "evidence": regex_guess.get("evidence_phrases")}
+        return items, {
+            "source": "regex",
+            "level": regex_guess.get("cefr_guess"),
+            "evidence": regex_guess.get("evidence_phrases"),
+        }
 
     # ----- 3) Structured (pick best German entry if any) -----
     german_candidates = []
@@ -383,7 +419,11 @@ def resolve_language_items(
         best["source"] = best.get("source") or "structured"
         items = [it for it in items if not str(it.get("language", "")).lower().startswith("ger")]
         items.append(best)
-        return items, {"source": "structured", "level": best.get("cefr_guess"), "evidence": best.get("evidence_phrases")}
+        return items, {
+            "source": "structured",
+            "level": best.get("cefr_guess"),
+            "evidence": best.get("evidence_phrases"),
+        }
 
     # ----- 4) Fallback: posting is German -> default to focus.min_german_level (or B1) -----
     post_lang = _guess_post_language(text_lower)
@@ -400,11 +440,18 @@ def resolve_language_items(
         }
         items = [it for it in items if not str(it.get("language", "")).lower().startswith("ger")]
         items.append(fallback)
-        return items, {"source": "fallback", "level": default_lvl, "evidence": fallback["evidence_phrases"]}
+        return items, {
+            "source": "fallback",
+            "level": default_lvl,
+            "evidence": fallback["evidence_phrases"],
+        }
 
     return items, {"source": "none", "level": None, "evidence": []}
 
-def _penalize_language(lang_items: List[Dict[str, Any]], english_hint: Optional[bool]) -> Dict[str, Any]:
+
+def _penalize_language(
+    lang_items: List[Dict[str, Any]], english_hint: Optional[bool]
+) -> Dict[str, Any]:
     english_detected = bool(english_hint)
     english_bonus = 0
     german_penalty = 0
@@ -440,8 +487,14 @@ def _penalize_language(lang_items: List[Dict[str, Any]], english_hint: Optional[
         base_penalty = _LANG_PENALTY.get(level, _LANG_PENALTY.get(level_raw, 0))
         penalty_key = level if level in _LANG_PENALTY else level_raw
         if penalty_key in _LANG_PENALTY:
-            penalty = int(round(conf * _LANG_PENALTY[penalty_key] + (1 - conf) * FALLBACK_VAGUE_PENALTY))
-            if german_entry.get("customer_facing") and str(german_entry.get("job_post_language") or "").lower() in ("german", "mixed") and penalty < 0:
+            penalty = int(
+                round(conf * _LANG_PENALTY[penalty_key] + (1 - conf) * FALLBACK_VAGUE_PENALTY)
+            )
+            if (
+                german_entry.get("customer_facing")
+                and str(german_entry.get("job_post_language") or "").lower() in ("german", "mixed")
+                and penalty < 0
+            ):
                 penalty -= 5
             german_penalty = penalty
             delta += penalty
@@ -467,6 +520,7 @@ def _penalize_language(lang_items: List[Dict[str, Any]], english_hint: Optional[
         "english_detected": english_detected,
     }
 
+
 def _vagueness_context_nudge(text_lower: str, english_detected: bool) -> Tuple[int, str]:
     delta = 0
     notes: List[str] = []
@@ -478,6 +532,7 @@ def _vagueness_context_nudge(text_lower: str, english_detected: bool) -> Tuple[i
             delta -= 10
             notes.append("Public-sector context")
     return delta, "; ".join(notes) if notes else ""
+
 
 def _experience_delta(text: str, focus) -> Tuple[int, str]:
     """
@@ -513,7 +568,10 @@ def _experience_delta(text: str, focus) -> Tuple[int, str]:
     # Light nudge when within the preferred cap; otherwise fall back to defaults.
     if focus_max is not None and max_years <= focus_max:
         base = -5
-        return (int(base * (strength / 3.0)), f"experience: {max_years}+ years (within preferred cap {focus_max})")
+        return (
+            int(base * (strength / 3.0)),
+            f"experience: {max_years}+ years (within preferred cap {focus_max})",
+        )
 
     if max_years >= 5:
         base = -30
@@ -526,27 +584,45 @@ def _experience_delta(text: str, focus) -> Tuple[int, str]:
     else:
         base = 0
 
-    return (int(base * (strength / 3.0)), f"experience: {max_years}+ years mentioned (penalty strength {strength:.1f}/3)")
+    return (
+        int(base * (strength / 3.0)),
+        f"experience: {max_years}+ years mentioned (penalty strength {strength:.1f}/3)",
+    )
 
-def _seniority_delta(seniority: str|None) -> Tuple[int,str]:
-    if not seniority: return (0, "seniority: unknown")
+
+def _seniority_delta(seniority: str | None) -> Tuple[int, str]:
+    if not seniority:
+        return (0, "seniority: unknown")
     s = seniority.strip().lower()
-    if s in ("senior",): return (-40, "penalty: Senior")
-    if s in ("mid", "intermediate"): return (-15, "penalty: Mid")
-    if s in ("junior",): return (+15, "bonus: Junior")
-    if s in ("working student","werkstudent","student"): return (+20, "bonus: Working Student")
-    if s in ("internship","intern"): return (+18, "bonus: Internship")
+    if s in ("senior",):
+        return (-40, "penalty: Senior")
+    if s in ("mid", "intermediate"):
+        return (-15, "penalty: Mid")
+    if s in ("junior",):
+        return (+15, "bonus: Junior")
+    if s in ("working student", "werkstudent", "student"):
+        return (+20, "bonus: Working Student")
+    if s in ("internship", "intern"):
+        return (+18, "bonus: Internship")
     return (0, f"seniority: {seniority}")
 
-def _employment_delta(emp: str|None) -> Tuple[int,str]:
-    if not emp: return (0, "employment: unknown")
+
+def _employment_delta(emp: str | None) -> Tuple[int, str]:
+    if not emp:
+        return (0, "employment: unknown")
     e = emp.upper()
-    if "PART_TIME" in e: return (+2, "employment: PART_TIME (ok for student/junior)")
-    if "FULL_TIME" in e: return (+6, "employment: FULL_TIME (good)")
-    if "CONTRACT" in e: return (+0, "employment: CONTRACT")
+    if "PART_TIME" in e:
+        return (+2, "employment: PART_TIME (ok for student/junior)")
+    if "FULL_TIME" in e:
+        return (+6, "employment: FULL_TIME (good)")
+    if "CONTRACT" in e:
+        return (+0, "employment: CONTRACT")
     return (0, f"employment: {emp}")
 
-def apply_seniority(title: str, seniority: Optional[str], focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
+
+def apply_seniority(
+    title: str, seniority: Optional[str], focus=DEFAULT_FOCUS
+) -> HeuristicComponentResult:
     reasons: List[str] = []
     delta = 0
     components: Dict[str, float] = {"seniority": 0}
@@ -583,7 +659,9 @@ def apply_seniority(title: str, seniority: Optional[str], focus=DEFAULT_FOCUS) -
     )
 
 
-def apply_language(text: str, lang_items: Optional[List[Dict[str, Any]]], english_hint: Optional[bool]) -> HeuristicComponentResult:
+def apply_language(
+    text: str, lang_items: Optional[List[Dict[str, Any]]], english_hint: Optional[bool]
+) -> HeuristicComponentResult:
     reasons: List[str] = []
     components: Dict[str, float] = {"english_ok": 0, "german_requirement": 0}
     delta = 0
@@ -604,7 +682,9 @@ def apply_language(text: str, lang_items: Optional[List[Dict[str, Any]]], englis
         nudge_delta, nudge_reason = _vagueness_context_nudge(text, english_detected)
         if nudge_delta:
             delta += nudge_delta
-            components["language_context_nudge"] = components.get("language_context_nudge", 0) + nudge_delta
+            components["language_context_nudge"] = (
+                components.get("language_context_nudge", 0) + nudge_delta
+            )
             reasons.append(nudge_reason)
 
     meta = {
@@ -635,7 +715,9 @@ def apply_skills(text: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
         must_bonus = -10
         reasons.append("No must-have skills detected (Python/SQL)")
     else:
-        reasons.append(f"Must-have skills present: {', '.join([k for k, v in include_counts.items() if v > 0])}")
+        reasons.append(
+            f"Must-have skills present: {', '.join([k for k, v in include_counts.items() if v > 0])}"
+        )
     must_delta = min(must_bonus, 25)
     delta += must_delta
     components["include_skills"] = must_delta
@@ -672,7 +754,9 @@ def apply_location(title: str, loc: str, focus=DEFAULT_FOCUS) -> HeuristicCompon
     else:
         components["location"] = 0
 
-    return HeuristicComponentResult(name="location", raw_score=delta, reasons=reasons, meta={"components": components})
+    return HeuristicComponentResult(
+        name="location", raw_score=delta, reasons=reasons, meta={"components": components}
+    )
 
 
 def apply_employment_type(employment: Optional[str]) -> HeuristicComponentResult:
@@ -685,7 +769,9 @@ def apply_employment_type(employment: Optional[str]) -> HeuristicComponentResult
     components["employment_type"] = emp_delta
     reasons.append(emp_msg)
 
-    return HeuristicComponentResult(name="employment_type", raw_score=delta, reasons=reasons, meta={"components": components})
+    return HeuristicComponentResult(
+        name="employment_type", raw_score=delta, reasons=reasons, meta={"components": components}
+    )
 
 
 def apply_experience(text: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
@@ -698,7 +784,9 @@ def apply_experience(text: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult
     components["experience"] = exp_delta
     reasons.append(exp_msg)
 
-    return HeuristicComponentResult(name="experience", raw_score=delta, reasons=reasons, meta={"components": components})
+    return HeuristicComponentResult(
+        name="experience", raw_score=delta, reasons=reasons, meta={"components": components}
+    )
 
 
 COMPONENT_FUNCS = [
@@ -711,7 +799,10 @@ COMPONENT_FUNCS = [
 ]
 
 
-def aggregate_heuristic(component_results: List[HeuristicComponentResult], weights: HeuristicWeights = DEFAULT_HEURISTIC_WEIGHTS) -> float:
+def aggregate_heuristic(
+    component_results: List[HeuristicComponentResult],
+    weights: HeuristicWeights = DEFAULT_HEURISTIC_WEIGHTS,
+) -> float:
     total = weights.base_score
     for res in component_results:
         w = weights.components.get(res.name, 1.0)
@@ -770,8 +861,8 @@ def score_job(
     Uses enrichment fields when present; otherwise falls back to keyword heuristics.
     """
     title = (job.get("title") or "").strip()
-    desc = (job.get("description_text") or "")
-    loc = (job.get("location") or "")
+    desc = job.get("description_text") or ""
+    loc = job.get("location") or ""
     employment = job.get("employment_type")
 
     text = f"{title}\n{desc}\n{loc}".strip()
@@ -863,7 +954,16 @@ def score_job(
     do_cap = settings.apply_blocker_cap if apply_blocker_cap is None else bool(apply_blocker_cap)
 
     if do_llm:
-        llm_part = llm_score_job(job, focus, {"heuristic_score": score_val, "components": components, "reasons": reasons, "meta": meta})
+        llm_part = llm_score_job(
+            job,
+            focus,
+            {
+                "heuristic_score": score_val,
+                "components": components,
+                "reasons": reasons,
+                "meta": meta,
+            },
+        )
 
     if llm_part and settings.llm_language_override:
         lang_items2, _lang_evidence2 = resolve_language_items(
@@ -963,7 +1063,9 @@ def score_job(
                 "critical_blockers": llm_part.get("critical_blockers"),
                 "german_requirement_llm": llm_part.get("german_requirement"),
                 "llm_summary": llm_part.get("summary"),
-                "llm_ok": bool(llm_part.get("llm_ok")) if llm_part.get("llm_ok") is not None else isinstance(llm_part.get("llm_score"), (int, float)),
+                "llm_ok": bool(llm_part.get("llm_ok"))
+                if llm_part.get("llm_ok") is not None
+                else isinstance(llm_part.get("llm_score"), (int, float)),
                 "llm_confidence": llm_part.get("confidence"),
                 "llm_error_type": llm_part.get("error_type"),
                 "llm_error_message": llm_part.get("error_message"),

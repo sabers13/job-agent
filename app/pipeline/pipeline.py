@@ -56,7 +56,9 @@ async def fetch_job_details(
     Mirrors the behaviour of the FastAPI /job_details endpoint so orchestration
     layers (Prefect, HTTP) stay consistent.
     """
-    cache_enabled = use_cache and settings.cache_enabled and (settings.cache_per_profile or focus is None)
+    cache_enabled = (
+        use_cache and settings.cache_enabled and (settings.cache_per_profile or focus is None)
+    )
     # Optional cache short-circuit
     if cache_enabled:
         try:
@@ -126,12 +128,16 @@ async def fetch_job_details(
                 "error_message": f"Unexpected error in enrichment wrapper: {exc}",
             }
             logger.exception("Unexpected error in enrichment wrapper")
-    scoring = score_job(
-        final_job,
-        focus=active_focus,
-        use_llm_scoring=use_llm_scoring,
-        apply_blocker_cap=apply_blocker_cap,
-    ) if score else None
+    scoring = (
+        score_job(
+            final_job,
+            focus=active_focus,
+            use_llm_scoring=use_llm_scoring,
+            apply_blocker_cap=apply_blocker_cap,
+        )
+        if score
+        else None
+    )
 
     if scoring:
         final_job = {**final_job, "junior_fit_score": scoring["score"]}

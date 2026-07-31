@@ -21,8 +21,10 @@ def slugify(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower()
     return re.sub(r"-{2,}", "-", text)
 
+
 def ensure_dir(p: Union[str, Path]) -> None:
     Path(p).mkdir(parents=True, exist_ok=True)
+
 
 def safe_filename(name: str) -> str:
     base = Path(name).name
@@ -31,8 +33,10 @@ def safe_filename(name: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", base)
     return cleaned or "file"
 
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
 
 def timestamp_iso() -> str:
     return datetime.datetime.now().isoformat(timespec="seconds")

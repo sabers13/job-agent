@@ -10,7 +10,9 @@ def extract_text_from_file(path: Path, mime_type: Optional[str] = None) -> str:
     suffix = path.suffix.lower()
     if mime_type == "text/plain" or suffix == ".txt":
         return path.read_text(encoding="utf-8", errors="replace")
-    if suffix == ".docx" or mime_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",):
+    if suffix == ".docx" or mime_type in (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ):
         from docx import Document
 
         doc = Document(str(path))

@@ -65,7 +65,9 @@ async def search_stepstone_pw(query: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-async def search_stepstone(query: Dict[str, Any], backend_override: str | None = None) -> Dict[str, Any]:
+async def search_stepstone(
+    query: Dict[str, Any], backend_override: str | None = None
+) -> Dict[str, Any]:
     """
     Choose backend for smoke check:
       - backend_override in {"pw","http"} takes precedence

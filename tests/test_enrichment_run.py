@@ -6,6 +6,7 @@ import pytest
 
 def _fake_openai_response(json_text: str):
     """Build an object shaped like OpenAI chat.completions.create response."""
+
     class _Msg:
         def __init__(self, content: str):
             self.content = content
@@ -32,6 +33,7 @@ def test_enrich_jobposting_uses_openai_model_env_and_merges_fields(monkeypatch):
 
     # Import + reload to pick up OPENAI_MODEL at import time
     import app.pipeline.llm_enrich as llm_enrich
+
     importlib.reload(llm_enrich)
 
     called = {"model": None, "temperature": None, "messages": None}
@@ -138,7 +140,9 @@ async def test_fetch_job_details_calls_enrichment_when_enrich_true(monkeypatch):
         return enriched
 
     monkeypatch.setattr(pipeline_mod, "fetch_job_html", fake_fetch_job_html)
-    monkeypatch.setattr(pipeline_mod, "extract_jobposting_from_html", fake_extract_jobposting_from_html)
+    monkeypatch.setattr(
+        pipeline_mod, "extract_jobposting_from_html", fake_extract_jobposting_from_html
+    )
     monkeypatch.setattr(pipeline_mod, "enrich_jobposting", fake_enrich_jobposting)
 
     result = await pipeline_mod.fetch_job_details(

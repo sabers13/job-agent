@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+
 class UnifiedJobPosting(BaseModel):
     # Core (from JSON-LD or scraped)
     title: str
@@ -19,11 +20,11 @@ class UnifiedJobPosting(BaseModel):
     description_html: Optional[str] = None
 
     # Enriched (LLM-added)
-    seniority: Optional[str] = None                  # e.g., Junior, Working Student, Internship, Mid, Senior
+    seniority: Optional[str] = None  # e.g., Junior, Working Student, Internship, Mid, Senior
     english_ok: Optional[bool] = None
-    german_requirement: Optional[str] = None         # e.g., None, A2, B1, B2, C1, Native
-    skills_detected: Optional[List[str]] = None      # detected skills
-    skill_hits: Optional[Dict[str, int]] = None      # counts for keyword hits { "Python": 3, ... }
+    german_requirement: Optional[str] = None  # e.g., None, A2, B1, B2, C1, Native
+    skills_detected: Optional[List[str]] = None  # detected skills
+    skill_hits: Optional[Dict[str, int]] = None  # counts for keyword hits { "Python": 3, ... }
     reasons_include: Optional[List[str]] = None
     reasons_exclude: Optional[List[str]] = None
 
@@ -41,6 +42,7 @@ class UnifiedJobPosting(BaseModel):
 # -------------------------
 # API / scoring models
 # -------------------------
+
 
 class FetchMeta(BaseModel):
     backend: Optional[str] = None
@@ -101,7 +103,9 @@ class Constraints(BaseModel):
     # Candidate constraints / policies
     german_level: str = "Unknown"  # Candidate's actual level: A0/A1/A2/B1/B2/C1/C2/Unknown
     relocation_ok: bool = True  # Candidate willing to relocate?
-    strict_language_blocker: bool = True  # If job needs high German and candidate level is Unknown -> treat as blocker
+    strict_language_blocker: bool = (
+        True  # If job needs high German and candidate level is Unknown -> treat as blocker
+    )
     blocker_caps: BlockerCaps = Field(default_factory=BlockerCaps)
 
 
@@ -112,7 +116,7 @@ class FocusProfileModel(BaseModel):
     search_seeds: List[str] = []
 
     # seniority / experience
-    target_seniority: Optional[str] = "junior"          # e.g. intern/junior/mid/senior
+    target_seniority: Optional[str] = "junior"  # e.g. intern/junior/mid/senior
     max_allowed_seniority: Optional[str] = "mid"
     max_required_experience_years: Optional[int] = 3
     experience_penalty_strength: float = 1.0
@@ -128,7 +132,7 @@ class FocusProfileModel(BaseModel):
     excluded_locations: List[str] = []
 
     # language / misc
-    min_german_level: Optional[str] = "B1"      # e.g. "none", "A2", "B1", ...
+    min_german_level: Optional[str] = "B1"  # e.g. "none", "A2", "B1", ...
     requires_student_status: bool = True
 
     # NEW (candidate constraints / cap policy)

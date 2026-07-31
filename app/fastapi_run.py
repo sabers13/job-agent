@@ -12,7 +12,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Literal
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, Response, status, UploadFile, File, Form
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+    UploadFile,
+    File,
+    Form,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -66,7 +78,7 @@ from app.common.logging_ctx import get_run_ctx, run_ctx_scope
 from .pipeline.url_pool_maintenance import prune_unavailable_stepstone_urls
 from .stepstone.search_http import search_stepstone as crawl_http
 from .stepstone.search_playwright import search_stepstone_pw as crawl_pw
-from .stepstone.smoke import search_stepstone as ss_search 
+from .stepstone.smoke import search_stepstone as ss_search
 from .pipeline.state import load_state, save_state
 from .fetching.polite_fetch import (
     RobotsDisallowedError,
@@ -143,6 +155,7 @@ async def sqlalchemy_dbapi_error_handler(request: Request, exc: DBAPIError):
         )
     return JSONResponse(status_code=500, content={"detail": "Database error"})
 
+
 use_playwright_default = settings.use_playwright_default
 headless_mode = settings.headless
 
@@ -150,6 +163,7 @@ headless_mode = settings.headless
 # -------------------------
 # Health + Playwright check
 # -------------------------
+
 
 class Health(BaseModel):
     ok: bool
@@ -159,6 +173,7 @@ class Health(BaseModel):
     config_ok: Optional[bool] = None
     db_ok: Optional[bool] = None
     output_ok: Optional[bool] = None
+
 
 @app.get("/health", response_model=Health)
 async def health():
@@ -214,6 +229,7 @@ async def playwright_check():
         raise HTTPException(status_code=400, detail="Playwright disabled in .env")
     try:
         from playwright.async_api import async_playwright
+
         ua = None
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=headless_mode)
@@ -222,8 +238,9 @@ async def playwright_check():
             data = await page.content()
             await browser.close()
         import re, html
+
         text = html.unescape(data)
-        m = re.search(r'\"user-agent\"\\s*:\\s*\"([^\"]+)\"', text)
+        m = re.search(r"\"user-agent\"\\s*:\\s*\"([^\"]+)\"", text)
         ua = m.group(1) if m else "unknown"
         return JSONResponse({"ok": True, "user_agent": ua})
     except Exception as e:
@@ -234,6 +251,7 @@ async def playwright_check():
 # -------------------------
 # Helpers
 # -------------------------
+
 
 def _resume_root(user_id: str, resume_id: str) -> Path:
     return settings.output_dir / user_id / settings.resumes_dir_name / resume_id
@@ -294,7 +312,9 @@ def _augment_with_potential_applications(status: dict) -> dict:
                 pot_count = summary.get("potential_applications_count")
                 pot_path = summary.get("potential_applications_path")
                 if pot_count is not None:
-                    status.setdefault("metrics", {})["potential_applications_count"] = int(pot_count)
+                    status.setdefault("metrics", {})["potential_applications_count"] = int(
+                        pot_count
+                    )
                 if pot_path:
                     status.setdefault("artifacts", {})["potential_applications_path"] = pot_path
                 if pot_count is not None or pot_path:
@@ -332,6 +352,7 @@ class _TemporaryEnv:
             else:
                 os.environ[key] = prior
 
+
 def _filter_listings_by_cutoff(result: Dict[str, Any], cutoff_iso: Optional[str]) -> Dict[str, Any]:
     dt = parse_iso8601_utc(cutoff_iso)
     if not dt:
@@ -359,10 +380,13 @@ def _filter_listings_by_cutoff(result: Dict[str, Any], cutoff_iso: Optional[str]
 # (Legacy) /search_stepstone
 # -------------------------
 
+
 @app.get("/search_stepstone")
 async def search_stepstone(
-    url: Optional[str] = Query(default=None, description="URL to visit; default StepStone EN homepage"),
-    backend: Optional[str] = Query(default=None, description="Override backend: 'pw' or 'http'")
+    url: Optional[str] = Query(
+        default=None, description="URL to visit; default StepStone EN homepage"
+    ),
+    backend: Optional[str] = Query(default=None, description="Override backend: 'pw' or 'http'"),
 ):
     try:
         query = {"url": url} if url else {}
@@ -378,6 +402,7 @@ async def search_stepstone(
 # -------------------------
 # NEW (L8): /search_stepstone_list
 # -------------------------
+
 
 @app.post("/search_stepstone_list", response_model=SearchStepstoneListResponse)
 async def search_stepstone_list(req: SearchStepstoneListRequest) -> SearchStepstoneListResponse:
@@ -427,9 +452,13 @@ async def job_details(req: JobDetailsRequest) -> JobDetailsResponse:
         try:
             active_focus = get_focus_config(req.profile_key)
         except KeyError:
-            logger.warning("Unknown profile_key '{}' provided; using DEFAULT_FOCUS", req.profile_key)
+            logger.warning(
+                "Unknown profile_key '{}' provided; using DEFAULT_FOCUS", req.profile_key
+            )
         except Exception:
-            logger.exception("Failed to load focus profile '{}'; using DEFAULT_FOCUS", req.profile_key)
+            logger.exception(
+                "Failed to load focus profile '{}'; using DEFAULT_FOCUS", req.profile_key
+            )
 
     try:
         result = await pipeline_fetch_job_details(
@@ -451,8 +480,12 @@ async def job_details(req: JobDetailsRequest) -> JobDetailsResponse:
         fetch_meta_payload = result.get("fetch_meta")
 
         job_model = UnifiedJobPostingOut(**job_payload)
-        scoring_model = ScoringResult(**scoring_payload) if isinstance(scoring_payload, dict) else None
-        fetch_meta_model = FetchMetaSchema(**fetch_meta_payload) if isinstance(fetch_meta_payload, dict) else None
+        scoring_model = (
+            ScoringResult(**scoring_payload) if isinstance(scoring_payload, dict) else None
+        )
+        fetch_meta_model = (
+            FetchMetaSchema(**fetch_meta_payload) if isinstance(fetch_meta_payload, dict) else None
+        )
 
         return JobDetailsResponse(
             ok=bool(result.get("ok", True)),
@@ -531,6 +564,7 @@ async def aggregate_report(req: AggregateReportRequest) -> AggregateReportRespon
 
 
 # ---------- Profile API ----------
+
 
 class ProfileListItem(BaseModel):
     key: str
@@ -707,7 +741,9 @@ def list_my_profiles(user=Depends(get_current_user)):
         items.append(
             {
                 "key": p.profile_key,
-                "profile_name": getattr(p, "profile_name", None) or payload.get("profile_name") or p.profile_key,
+                "profile_name": getattr(p, "profile_name", None)
+                or payload.get("profile_name")
+                or p.profile_key,
                 "description": getattr(p, "description", None) or payload.get("description"),
             }
         )
@@ -719,7 +755,11 @@ def get_my_me(user=Depends(get_current_user)):
     return MeResponse(user_id=str(user.id), email=getattr(user, "email", None))
 
 
-@app.get("/api/my/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/my/profile/{key}",
+    response_model=FocusProfileModel,
+    dependencies=[Depends(get_current_user)],
+)
 def get_my_profile(key: str, user=Depends(get_current_user)):
     with db_session() as db:
         prof = get_profile_for_user(db, user.id, key)
@@ -729,7 +769,11 @@ def get_my_profile(key: str, user=Depends(get_current_user)):
     return FocusProfileModel(**payload)
 
 
-@app.get("/api/my/profile/{profile_key}/latest", response_model=dict, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/my/profile/{profile_key}/latest",
+    response_model=dict,
+    dependencies=[Depends(get_current_user)],
+)
 def get_my_profile_latest(profile_key: str, user=Depends(get_current_user)):
     path = run_manager.latest_path(str(user.id), profile_key)
     if not path.exists():
@@ -804,7 +848,9 @@ def prune_profile_url_pool_stepstone(
     return MaintenanceRunResponse(run_id=run_id, status="running")
 
 
-@app.post("/api/my/resume", response_model=ResumeUploadResponse, dependencies=[Depends(get_current_user)])
+@app.post(
+    "/api/my/resume", response_model=ResumeUploadResponse, dependencies=[Depends(get_current_user)]
+)
 async def upload_resume(
     file: UploadFile = File(...),
     set_active: bool = Form(True),
@@ -824,9 +870,7 @@ async def upload_resume(
 
     with db_session() as db:
         existing = (
-            db.query(Resume)
-            .filter(Resume.user_id == user_id, Resume.sha256 == digest)
-            .first()
+            db.query(Resume).filter(Resume.user_id == user_id, Resume.sha256 == digest).first()
         )
         if existing:
             if set_active:
@@ -889,7 +933,9 @@ async def upload_resume(
         )
 
 
-@app.get("/api/my/resumes", response_model=List[ResumeListItem], dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/my/resumes", response_model=List[ResumeListItem], dependencies=[Depends(get_current_user)]
+)
 def list_resumes(user=Depends(get_current_user)):
     with db_session() as db:
         rows = (
@@ -909,18 +955,18 @@ def list_resumes(user=Depends(get_current_user)):
     ]
 
 
-@app.get("/api/my/resume/{resume_id}", response_model=ResumeDetailResponse, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/my/resume/{resume_id}",
+    response_model=ResumeDetailResponse,
+    dependencies=[Depends(get_current_user)],
+)
 def get_resume_detail(resume_id: str, user=Depends(get_current_user)):
     try:
         resume_uuid = uuid.UUID(resume_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid resume_id")
     with db_session() as db:
-        row = (
-            db.query(Resume)
-            .filter(Resume.user_id == user.id, Resume.id == resume_uuid)
-            .first()
-        )
+        row = db.query(Resume).filter(Resume.user_id == user.id, Resume.id == resume_uuid).first()
         if not row:
             raise HTTPException(status_code=404, detail="Resume not found")
 
@@ -946,18 +992,18 @@ def get_resume_detail(resume_id: str, user=Depends(get_current_user)):
         )
 
 
-@app.post("/api/my/resume/{resume_id}/activate", response_model=dict, dependencies=[Depends(get_current_user)])
+@app.post(
+    "/api/my/resume/{resume_id}/activate",
+    response_model=dict,
+    dependencies=[Depends(get_current_user)],
+)
 def activate_resume(resume_id: str, user=Depends(get_current_user)):
     try:
         resume_uuid = uuid.UUID(resume_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid resume_id")
     with db_session() as db:
-        row = (
-            db.query(Resume)
-            .filter(Resume.user_id == user.id, Resume.id == resume_uuid)
-            .first()
-        )
+        row = db.query(Resume).filter(Resume.user_id == user.id, Resume.id == resume_uuid).first()
         if not row:
             raise HTTPException(status_code=404, detail="Resume not found")
         db.query(Resume).filter(Resume.user_id == user.id).update(
@@ -969,7 +1015,9 @@ def activate_resume(resume_id: str, user=Depends(get_current_user)):
     return {"ok": True, "resume_id": resume_id}
 
 
-@app.post("/api/my/profile", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+@app.post(
+    "/api/my/profile", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)]
+)
 def upsert_my_profile(body: MyProfileCreate, response: Response, user=Depends(get_current_user)):
     with db_session() as db:
         existed = get_profile_for_user(db, user.id, body.profile_key) is not None
@@ -991,8 +1039,14 @@ def upsert_my_profile(body: MyProfileCreate, response: Response, user=Depends(ge
         return FocusProfileModel(**payload)
 
 
-@app.post("/api/my/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
-def upsert_my_profile_by_key(key: str, body: MyProfileUpdate, response: Response, user=Depends(get_current_user)):
+@app.post(
+    "/api/my/profile/{key}",
+    response_model=FocusProfileModel,
+    dependencies=[Depends(get_current_user)],
+)
+def upsert_my_profile_by_key(
+    key: str, body: MyProfileUpdate, response: Response, user=Depends(get_current_user)
+):
     with db_session() as db:
         existed = get_profile_for_user(db, user.id, key) is not None
 
@@ -1021,7 +1075,9 @@ def delete_my_profile(key: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
-@app.get("/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)]
+)
 def get_profile_api(key: str):
     data = profile_store.get_profile(key)
     if not data:
@@ -1029,7 +1085,9 @@ def get_profile_api(key: str):
     return FocusProfileModel(**data)
 
 
-@app.post("/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)])
+@app.post(
+    "/api/profile/{key}", response_model=FocusProfileModel, dependencies=[Depends(get_current_user)]
+)
 def upsert_profile_api(key: str, profile: FocusProfileModel):
     stored = profile_store.upsert_profile(key, profile.model_dump())
     return FocusProfileModel(**stored)
@@ -1084,13 +1142,13 @@ def _build_seeds_from_focus(focus) -> Optional[List[Dict[str, Any]]]:
         url = raw.strip()
         slug = ""
         if url.startswith("http://") or url.startswith("https://"):
-            slug = _slugify(url.split("/")[-1] or f"seed-{idx+1}")
+            slug = _slugify(url.split("/")[-1] or f"seed-{idx + 1}")
         else:
             slug = _slugify(url)
             url = f"https://www.stepstone.de/jobs/{slug}/"
         payload.append(
             {
-                "slug": slug or f"seed-{idx+1}",
+                "slug": slug or f"seed-{idx + 1}",
                 "seed_url": url,
                 "use_playwright": False,
                 "delay_sec": 1.2,
@@ -1110,10 +1168,10 @@ def _build_seeds_from_urls(seed_urls: List[str]) -> List[Dict[str, Any]]:
         url = raw.strip()
         if not url:
             continue
-        slug = _slugify(url.split("/")[-1] or f"seed-{idx+1}")
+        slug = _slugify(url.split("/")[-1] or f"seed-{idx + 1}")
         payload.append(
             {
-                "slug": slug or f"seed-{idx+1}",
+                "slug": slug or f"seed-{idx + 1}",
                 "seed_url": url,
                 "use_playwright": False,
                 "delay_sec": 1.2,
@@ -1187,12 +1245,12 @@ def _run_prefect_batch(
         if getattr(settings, "openai_model_scoring", None):
             env["JOBAGENT_OPENAI_MODEL_SCORING"] = getattr(settings, "openai_model_scoring", "")
 
-    # Override seeds per profile, if provided
+        # Override seeds per profile, if provided
         try:
             focus = get_focus_config(profile_key)
             seeds_payload = _build_seeds_from_focus(focus)
             if seeds_payload:
-                env["JOBAGENT_STEPSTONE" "_SEEDS_JSON"] = json.dumps(seeds_payload, ensure_ascii=False)
+                env["JOBAGENT_STEPSTONE_SEEDS_JSON"] = json.dumps(seeds_payload, ensure_ascii=False)
         except Exception:
             pass
 
@@ -1270,7 +1328,9 @@ def _run_prefect_batch(
                         if metrics_json.exists():
                             artifacts["run_metrics_json"] = str(metrics_json)
                             try:
-                                status["metrics"] = json.loads(metrics_json.read_text(encoding="utf-8"))
+                                status["metrics"] = json.loads(
+                                    metrics_json.read_text(encoding="utf-8")
+                                )
                             except json.JSONDecodeError:
                                 status["metrics"] = {}
                         status["artifacts"] = artifacts
@@ -1536,11 +1596,15 @@ def _run_prune_url_pool(
                 )
             status["metrics"] = metrics
             metrics_path = run_root / "run_metrics.json"
-            metrics_path.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+            metrics_path.write_text(
+                json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             artifacts = status.get("artifacts") or {}
             artifacts["run_metrics_json"] = str(metrics_path)
             artifacts["url_pool_jsonl"] = str(profile_dir / "url_pool.jsonl")
-            artifacts["url_pool_unavailable_jsonl"] = str(profile_dir / "url_pool_unavailable.jsonl")
+            artifacts["url_pool_unavailable_jsonl"] = str(
+                profile_dir / "url_pool_unavailable.jsonl"
+            )
             status["artifacts"] = artifacts
             status["status"] = "completed"
             status["finished_at"] = run_manager._now_iso()
@@ -1553,7 +1617,9 @@ def _run_prune_url_pool(
             run_manager.write_status(run_id, status)
 
 
-@app.post("/api/run_single", response_model=RunSingleResponse, dependencies=[Depends(get_current_user)])
+@app.post(
+    "/api/run_single", response_model=RunSingleResponse, dependencies=[Depends(get_current_user)]
+)
 async def run_single(req: RunSingleRequest, user=Depends(get_current_user)) -> RunSingleResponse:
     with db_session() as db:
         profile_model = get_focus_profile_model_for_user(db, user.id, req.profile_key)
@@ -1598,7 +1664,9 @@ async def run_single(req: RunSingleRequest, user=Depends(get_current_user)) -> R
 
     job_model = UnifiedJobPostingOut(**job_payload)
     scoring_model = ScoringResult(**scoring_payload) if isinstance(scoring_payload, dict) else None
-    fetch_meta_model = FetchMetaSchema(**fetch_meta_payload) if isinstance(fetch_meta_payload, dict) else None
+    fetch_meta_model = (
+        FetchMetaSchema(**fetch_meta_payload) if isinstance(fetch_meta_payload, dict) else None
+    )
 
     job_details = JobDetailsResponse(
         ok=result.get("ok", True),
@@ -1618,8 +1686,12 @@ async def run_single(req: RunSingleRequest, user=Depends(get_current_user)) -> R
     )
 
 
-@app.post("/api/start_batch_run", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)])
-def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
+@app.post(
+    "/api/start_batch_run", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)]
+)
+def start_batch_run(
+    req: StartBatchRunRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)
+):
     with db_session() as db:
         profile_model = get_focus_profile_model_for_user(db, user.id, req.profile_key)
     if not profile_model:
@@ -1630,14 +1702,18 @@ def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks
     run_dir = run_manager.get_run_dir(user_id, req.profile_key, run_id)
     focus_override_path = run_dir / "focus_profile_override.json"
     focus_override_payload = {"profile_key": req.profile_key, **profile_model.model_dump()}
-    focus_override_path.write_text(json.dumps(focus_override_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    focus_override_path.write_text(
+        json.dumps(focus_override_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     seeds_json_path = None
     if req.seed_urls:
         seeds_payload = _build_seeds_from_urls(req.seed_urls)
         if seeds_payload:
             seeds_json_path = run_dir / "seed_override.json"
-            seeds_json_path.write_text(json.dumps(seeds_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            seeds_json_path.write_text(
+                json.dumps(seeds_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
     if req.orchestrator == "prefect_inprocess":
         background_tasks.add_task(
@@ -1713,7 +1789,11 @@ def start_batch_run(req: StartBatchRunRequest, background_tasks: BackgroundTasks
     return BatchRunStatus(**status)
 
 
-@app.get("/api/run_status/{run_id}", response_model=BatchRunStatus, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/run_status/{run_id}",
+    response_model=BatchRunStatus,
+    dependencies=[Depends(get_current_user)],
+)
 def get_run_status(run_id: str, user=Depends(get_current_user)):
     status = run_manager.load_status(run_id)
     if not status:
@@ -1728,7 +1808,11 @@ def get_run_status(run_id: str, user=Depends(get_current_user)):
     return BatchRunStatus(**status)
 
 
-@app.get("/api/run_logs/{run_id}", response_model=RunLogsResponse, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/run_logs/{run_id}",
+    response_model=RunLogsResponse,
+    dependencies=[Depends(get_current_user)],
+)
 def get_run_logs(
     run_id: str,
     offset: int = 0,
@@ -1759,7 +1843,11 @@ def get_run_logs(
     )
 
 
-@app.get("/api/run_summary/{run_id}", response_model=RunSummaryResponse, dependencies=[Depends(get_current_user)])
+@app.get(
+    "/api/run_summary/{run_id}",
+    response_model=RunSummaryResponse,
+    dependencies=[Depends(get_current_user)],
+)
 def get_run_summary(run_id: str, user=Depends(get_current_user)):
     status = run_manager.load_status(run_id)
     if not status:
@@ -1788,6 +1876,7 @@ def get_run_summary(run_id: str, user=Depends(get_current_user)):
         analysis_summary=analysis_summary,
     )
 
+
 # -------------------------
 # Run artifacts: potential applications
 # -------------------------
@@ -1796,7 +1885,13 @@ _SAFE_JOBKEY_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,200}$")
 
 
 def _safe_job_key(job_key: str) -> str:
-    if not job_key or not _SAFE_JOBKEY_RE.match(job_key) or ".." in job_key or "/" in job_key or "\\" in job_key:
+    if (
+        not job_key
+        or not _SAFE_JOBKEY_RE.match(job_key)
+        or ".." in job_key
+        or "/" in job_key
+        or "\\" in job_key
+    ):
         raise HTTPException(status_code=400, detail="Invalid job_key")
     return job_key
 
@@ -1835,10 +1930,13 @@ def _extract_best_effort_fields(
     job = job or {}
     meta = meta or {}
     title = job.get("title") or job.get("job_title") or meta.get("title") or meta.get("job_title")
-    company = job.get("company") or meta.get("company") or job.get("employer") or meta.get("employer")
+    company = (
+        job.get("company") or meta.get("company") or job.get("employer") or meta.get("employer")
+    )
     location = job.get("location") or meta.get("location") or job.get("city") or meta.get("city")
     url = job.get("url") or meta.get("url")
     return {"title": title, "company": company, "location": location, "url": url}
+
 
 @app.get(
     "/api/run_artifacts/{run_id}/potential_applications",
@@ -1868,7 +1966,12 @@ def list_potential_applications(
         if len(items) >= int(limit):
             break
         job_key = child.name
-        if not _SAFE_JOBKEY_RE.match(job_key) or ".." in job_key or "/" in job_key or "\\" in job_key:
+        if (
+            not _SAFE_JOBKEY_RE.match(job_key)
+            or ".." in job_key
+            or "/" in job_key
+            or "\\" in job_key
+        ):
             continue
 
         reason = _read_json_file(child / "potential_reason.json")
@@ -1933,7 +2036,9 @@ def get_potential_application_detail(
         raise HTTPException(status_code=404, detail="Not found")
 
     reason = _read_json_file(child / "potential_reason.json")
-    job_obj = _pick_first_json([child / "job.json", child / "job_details.json", child / "job_posting.json"])
+    job_obj = _pick_first_json(
+        [child / "job.json", child / "job_details.json", child / "job_posting.json"]
+    )
     meta_obj = _pick_first_json([child / "metadata.json", child / "meta.json"])
 
     return PotentialApplicationDetailResponse(
@@ -1967,6 +2072,7 @@ def gui_logout():
 # -------------------------
 # Run state persistence
 # -------------------------
+
 
 class RunState(BaseModel):
     last_run: Optional[str] = None

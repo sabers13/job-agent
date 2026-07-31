@@ -20,6 +20,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def signup(req: SignupRequest):
     def _find(db):
         return get_user_by_email(db, req.email)
+
     try:
         existing = run_db_with_retries(_find, max_retries=2, base_sleep=0.4)
     except (OperationalError, DBAPIError) as exc:

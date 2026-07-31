@@ -5,11 +5,13 @@ import json
 import re
 from html import unescape
 
+
 def _first_not_none(*vals):
     for v in vals:
         if v not in (None, "", []):
             return v
     return None
+
 
 def _as_text(html_str: Optional[str]) -> Optional[str]:
     if not html_str:
@@ -18,6 +20,7 @@ def _as_text(html_str: Optional[str]) -> Optional[str]:
     soup = BeautifulSoup(html_str, "lxml")
     text = soup.get_text(" ", strip=True)
     return re.sub(r"\s+", " ", text).strip() if text else None
+
 
 def _normalize_location(job_json: Dict[str, Any]) -> Optional[str]:
     loc = job_json.get("jobLocation")
@@ -33,6 +36,7 @@ def _normalize_location(job_json: Dict[str, Any]) -> Optional[str]:
         comps = [c for c in comps if c]
         return ", ".join(comps) if comps else None
     return None
+
 
 def _normalize_salary(job_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     sal = job_json.get("baseSalary")
@@ -55,6 +59,7 @@ def _normalize_salary(job_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         }
     return None
 
+
 def _pick_jobposting(ld_blocks: List[Any]) -> Optional[Dict[str, Any]]:
     # Find object with @type == "JobPosting" (handle lists/nested graphs)
     for block in ld_blocks:
@@ -73,6 +78,7 @@ def _pick_jobposting(ld_blocks: List[Any]) -> Optional[Dict[str, Any]]:
                 if isinstance(node, dict) and node.get("@type") == "JobPosting":
                     return node
     return None
+
 
 def extract_jobposting_from_html(html: str) -> Dict[str, Any]:
     """
@@ -96,7 +102,9 @@ def extract_jobposting_from_html(html: str) -> Dict[str, Any]:
 
     jp = _pick_jobposting(ld_blocks) or {}
 
-    title = _first_not_none(jp.get("title"), soup.find("h1").get_text(strip=True) if soup.find("h1") else None)
+    title = _first_not_none(
+        jp.get("title"), soup.find("h1").get_text(strip=True) if soup.find("h1") else None
+    )
     org = jp.get("hiringOrganization") or {}
     if isinstance(org, dict):
         company = _first_not_none(org.get("name"), org.get("legalName"))

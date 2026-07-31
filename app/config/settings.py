@@ -63,51 +63,71 @@ class Settings:
     score_keep_threshold: int = int(os.getenv("JOBAGENT_SCORE_KEEP_THRESHOLD", "70"))
     use_llm_scoring: bool = os.getenv("JOBAGENT_USE_LLM_SCORING", "false").lower() == "true"
     apply_blocker_cap: bool = os.getenv("JOBAGENT_APPLY_BLOCKER_CAP", "true").lower() == "true"
-    llm_language_override: bool = os.getenv("JOBAGENT_LLM_LANGUAGE_OVERRIDE", "1").lower() in ("1", "true")
-    llm_language_override_conf: float = float(os.getenv("JOBAGENT_LLM_LANGUAGE_OVERRIDE_CONF", "0.9"))
+    llm_language_override: bool = os.getenv("JOBAGENT_LLM_LANGUAGE_OVERRIDE", "1").lower() in (
+        "1",
+        "true",
+    )
+    llm_language_override_conf: float = float(
+        os.getenv("JOBAGENT_LLM_LANGUAGE_OVERRIDE_CONF", "0.9")
+    )
     openai_api_key: str | None = _env("OPENAI_API_KEY", "JOBAGENT_OPENAI_API_KEY", default=None)
 
     # Fetching / crawling (canonical: JOBAGENT_*, with fallbacks)
-    use_playwright_default: bool = _env_bool("JOBAGENT_USE" "_PLAYWRIGHT", "USE" "_PLAYWRIGHT", default=True)
-    headless: bool = _env_bool("JOBAGENT_HEAD" "LESS", "HEAD" "LESS", default=True)
+    use_playwright_default: bool = _env_bool(
+        "JOBAGENT_USE_PLAYWRIGHT", "USE_PLAYWRIGHT", default=True
+    )
+    headless: bool = _env_bool("JOBAGENT_HEADLESS", "HEADLESS", default=True)
 
     # Polite fetch timing (seconds)
-    fetch_delay_min_sec: float = _env_float("JOBAGENT_FETCH_DELAY_MIN_SEC", "JOB" "_FETCH_DELAY_MIN_SEC", default=6.0)
-    fetch_delay_max_sec: float = _env_float("JOBAGENT_FETCH_DELAY_MAX_SEC", "JOB" "_FETCH_DELAY_MAX_SEC", default=12.0)
+    fetch_delay_min_sec: float = _env_float(
+        "JOBAGENT_FETCH_DELAY_MIN_SEC", "JOB_FETCH_DELAY_MIN_SEC", default=6.0
+    )
+    fetch_delay_max_sec: float = _env_float(
+        "JOBAGENT_FETCH_DELAY_MAX_SEC", "JOB_FETCH_DELAY_MAX_SEC", default=12.0
+    )
     fetch_failure_backoff_sec: float = _env_float(
         "JOBAGENT_FETCH_FAILURE_BACKOFF_SEC",
-        "JOB" "_FETCH_FAILURE_BACKOFF_SEC",
+        "JOB_FETCH_FAILURE_BACKOFF_SEC",
         default=5.0,
     )
 
     # HTTP fetch behavior
-    fetch_http_timeout_sec: float = _env_float("JOBAGENT_FETCH_HTTP_TIMEOUT", "JOB" "_FETCH_HTTP_TIMEOUT", default=35.0)
-    fetch_http_retries: int = _env_int("JOBAGENT_FETCH_HTTP_RETRIES", "JOB" "_FETCH_HTTP_RETRIES", default=2)
+    fetch_http_timeout_sec: float = _env_float(
+        "JOBAGENT_FETCH_HTTP_TIMEOUT", "JOB_FETCH_HTTP_TIMEOUT", default=35.0
+    )
+    fetch_http_retries: int = _env_int(
+        "JOBAGENT_FETCH_HTTP_RETRIES", "JOB_FETCH_HTTP_RETRIES", default=2
+    )
     fetch_http_backoff_base: float = _env_float(
         "JOBAGENT_FETCH_HTTP_BACKOFF_BASE",
-        "JOB" "_FETCH_HTTP_BACKOFF_BASE",
+        "JOB_FETCH_HTTP_BACKOFF_BASE",
         default=3.0,
     )
 
     # Playwright tuning
-    playwright_wait_until: str = _env(
-        "JOBAGENT_FETCH_PW_WAIT_UNTIL",
-        "JOB" "_FETCH_PW_WAIT_UNTIL",
-        default="domcontentloaded",
-    ) or "domcontentloaded"
+    playwright_wait_until: str = (
+        _env(
+            "JOBAGENT_FETCH_PW_WAIT_UNTIL",
+            "JOB_FETCH_PW_WAIT_UNTIL",
+            default="domcontentloaded",
+        )
+        or "domcontentloaded"
+    )
     playwright_timeout_ms: int = _env_int(
         "JOBAGENT_FETCH_PW_TIMEOUT_MS",
-        "JOB" "_FETCH_PW_TIMEOUT_MS",
+        "JOB_FETCH_PW_TIMEOUT_MS",
         default=45000,
     )
 
     # Robots / access denied heuristics
-    fetch_robots_ttl_sec: float = _env_float("JOBAGENT_FETCH_ROBOTS_TTL_SEC", "JOB" "_FETCH_ROBOTS_TTL_SEC", default=86400.0)
+    fetch_robots_ttl_sec: float = _env_float(
+        "JOBAGENT_FETCH_ROBOTS_TTL_SEC", "JOB_FETCH_ROBOTS_TTL_SEC", default=86400.0
+    )
     fetch_access_denied_markers: tuple[str, ...] = tuple(
         marker.lower()
         for marker in _env_csv(
             "JOBAGENT_FETCH_ACCESS_DENIED_MARKERS",
-            "JOB" "_FETCH_ACCESS_DENIED_MARKERS",
+            "JOB_FETCH_ACCESS_DENIED_MARKERS",
             default=(
                 "access denied,request blocked,captcha required,forbidden,"
                 "request unsuccessful,incapsula,imperva,verify you are human,"
@@ -117,22 +137,28 @@ class Settings:
     )
 
     # Request headers
-    fetch_user_agent: str = _env(
-        "JOBAGENT_FETCH_USER_AGENT",
-        "JOB" "_FETCH_USER_AGENT",
-        default=(
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        ),
-    ) or ""
-    fetch_accept_language: str = _env(
-        "JOBAGENT_FETCH_ACCEPT_LANGUAGE",
-        "JOB" "_FETCH_ACCEPT_LANGUAGE",
-        default="de-DE,de;q=0.9,en-US;q=0.7,en;q=0.6",
-    ) or ""
+    fetch_user_agent: str = (
+        _env(
+            "JOBAGENT_FETCH_USER_AGENT",
+            "JOB_FETCH_USER_AGENT",
+            default=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+        )
+        or ""
+    )
+    fetch_accept_language: str = (
+        _env(
+            "JOBAGENT_FETCH_ACCEPT_LANGUAGE",
+            "JOB_FETCH_ACCEPT_LANGUAGE",
+            default="de-DE,de;q=0.9,en-US;q=0.7,en;q=0.6",
+        )
+        or ""
+    )
 
     # Legacy delay used by some older utilities (ms)
-    request_delay_ms: int = _env_int("JOBAGENT_REQUEST" "_DELAY_MS", "REQUEST" "_DELAY_MS", default=800)
+    request_delay_ms: int = _env_int("JOBAGENT_REQUEST_DELAY_MS", "REQUEST_DELAY_MS", default=800)
 
     # Cache
     cache_enabled: bool = _env_bool("JOBAGENT_CACHE_ENABLED", default=True)
@@ -161,13 +187,15 @@ class Settings:
     env: str = (_env("JOBAGENT_ENV", default="dev") or "dev").lower()
     seeds_file: Path = Path(
         _env(
-            "JOBAGENT_STEPSTONE" "_SEEDS_FILE",
-            "STEPSTONE" "_SEEDS_FILE",
+            "JOBAGENT_STEPSTONE_SEEDS_FILE",
+            "STEPSTONE_SEEDS_FILE",
             default="config/stepstone_seeds.json",
         )
         or "config/stepstone_seeds.json"
     )
-    seeds_json: str | None = _env("JOBAGENT_STEPSTONE" "_SEEDS_JSON", "STEPSTONE" "_SEEDS_JSON", default=None)
+    seeds_json: str | None = _env(
+        "JOBAGENT_STEPSTONE_SEEDS_JSON", "STEPSTONE_SEEDS_JSON", default=None
+    )
     seeds_json_path: str | None = _env("JOBAGENT_STEPSTONE_SEEDS_JSON_PATH", default=None)
 
 

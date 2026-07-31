@@ -24,7 +24,9 @@ def _language_summary(job: Dict[str, Any]) -> Dict[str, Any]:
         "german_conf": de.get("confidence"),
         "german_customer_facing": bool(de.get("customer_facing")),
         "english_ok": bool(job.get("english_ok")) or bool(en),
-        "posting_language": (de.get("job_post_language") or job.get("posting_language") or "Unknown"),
+        "posting_language": (
+            de.get("job_post_language") or job.get("posting_language") or "Unknown"
+        ),
         "phrases": (de.get("evidence_phrases") or [])[:5],
     }
 
@@ -57,6 +59,8 @@ def generate_bundle(job: Dict, scoring: Dict | None = None) -> Dict[str, str]:
         # Minimal fallback if template is missing
         title = job.get("title") or "Unknown role"
         company = job.get("company") or "Unknown company"
-        outputs["REPORT.md"] = f"# {title} — {company}\n\nScore: {score_val if score_val is not None else 'n/a'}\n"
+        outputs["REPORT.md"] = (
+            f"# {title} — {company}\n\nScore: {score_val if score_val is not None else 'n/a'}\n"
+        )
 
     return outputs

@@ -31,7 +31,9 @@ FAILURE_BACKOFF = float(settings.fetch_failure_backoff_sec)
 PLAYWRIGHT_WAIT_UNTIL = settings.playwright_wait_until
 PLAYWRIGHT_TIMEOUT_MS = int(settings.playwright_timeout_ms)
 
-ACCESS_DENIED_MARKERS: Tuple[str, ...] = tuple(x.strip().lower() for x in settings.fetch_access_denied_markers)
+ACCESS_DENIED_MARKERS: Tuple[str, ...] = tuple(
+    x.strip().lower() for x in settings.fetch_access_denied_markers
+)
 
 
 class FetchError(Exception):
@@ -224,7 +226,9 @@ async def _http_attempt(
 
     start = time.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, headers=headers, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=FETCH_TIMEOUT, headers=headers, follow_redirects=True
+        ) as client:
             resp = await client.get(url)
     except httpx.RequestError as exc:
         elapsed = time.perf_counter() - start
@@ -349,7 +353,9 @@ async def _playwright_attempt(
                 "final_url": final_url,
             }
             if _looks_access_denied(html):
-                logger.warning("Playwright body indicates Access Denied for {} attempt {}", url, attempt_index)
+                logger.warning(
+                    "Playwright body indicates Access Denied for {} attempt {}", url, attempt_index
+                )
                 data = meta.copy()
                 data["reason"] = "body_marker"
                 await _mark_failure(domain)

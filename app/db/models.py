@@ -35,9 +35,7 @@ class User(Base):
     profiles: Mapped[list["Profile"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    runs: Mapped[list["Run"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
+    runs: Mapped[list["Run"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     resumes: Mapped[list["Resume"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -96,9 +94,7 @@ class Profile(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="profiles")
-    runs: Mapped[list["Run"]] = relationship(
-        back_populates="profile", cascade="all, delete-orphan"
-    )
+    runs: Mapped[list["Run"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
     url_pool: Mapped[list["UrlPoolEntry"]] = relationship(
         back_populates="profile", cascade="all, delete-orphan"
     )

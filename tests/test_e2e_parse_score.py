@@ -21,4 +21,3 @@ def test_score_job_minimal_payload_no_llm():
     assert "heuristic_score" in scoring
     assert "components" in scoring
     assert "reasons" in scoring
-

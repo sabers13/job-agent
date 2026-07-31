@@ -11,7 +11,11 @@ def test_llm_scoring_hard_blocker_caps(monkeypatch):
             "llm_scoring_version": "test",
             "risk_flags": ["German required"],
             "critical_blockers": ["unverified_german_proficiency_at_required_level"],
-            "german_requirement": {"type": "hard_blocker", "min_level": "C1", "justification": "Fluent German required"},
+            "german_requirement": {
+                "type": "hard_blocker",
+                "min_level": "C1",
+                "justification": "Fluent German required",
+            },
             "summary": "Hard blocker unless German is verified",
         }
 
@@ -34,4 +38,3 @@ def test_llm_scoring_hard_blocker_caps(monkeypatch):
     assert result["llm_ok"] is True
     assert result["score"] <= 35
     assert result["german_requirement_llm"]["min_level"] == "C1"
-

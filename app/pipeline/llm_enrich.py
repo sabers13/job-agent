@@ -34,7 +34,7 @@ def _build_system_prompt(focus=DEFAULT_FOCUS) -> str:
         "You are an expert recruiter for junior data/BI roles in Germany.\n"
         "Given a job ad (plain text) and partial metadata, return a STRICT JSON object with fields:\n"
         "- seniority (Junior|Working Student|Internship|Mid|Senior|Unknown)\n"
-        '- english_ok (true|false|null) — true only if the ad explicitly states English is accepted/working language\n'
+        "- english_ok (true|false|null) — true only if the ad explicitly states English is accepted/working language\n"
         "- language_requirements: an array of objects, one per language explicitly referenced in the ad. Each object must include:\n"
         "    {\n"
         '      "language": string (e.g. "German", "English"),\n'
@@ -58,7 +58,7 @@ def _build_system_prompt(focus=DEFAULT_FOCUS) -> str:
         "Rules:\n"
         "- Do NOT fabricate unknowns; if unsure, set fields to null/Unknown and keep confidence <=0.3.\n"
         '- Only guess a CEFR level when the ad explicitly names a language or provides strong evidence (e.g. "sehr gute Deutschkenntnisse"). '
-        "Generic phrases like \"communication skills\" without a language should leave the language as Unknown.\n"
+        'Generic phrases like "communication skills" without a language should leave the language as Unknown.\n'
         '- If the ad is entirely in German and customer-facing, you may give German="B2" with confidence <=0.5; otherwise keep it Unknown with low confidence.\n'
         "- Mark customer_facing=true when the ad emphasises Kundenkontakt/consulting/sales/external stakeholders.\n"
         "- Set job_post_language based on the predominant language of the ad.\n"
@@ -123,8 +123,7 @@ def _build_user_prompt(job: Dict[str, Any], focus=DEFAULT_FOCUS) -> str:
     resume_block = ""
     if resume_ctx:
         resume_block = (
-            "\n\nResume CONTEXT:\n"
-            f"{json.dumps(resume_ctx, ensure_ascii=False, indent=2)}"
+            f"\n\nResume CONTEXT:\n{json.dumps(resume_ctx, ensure_ascii=False, indent=2)}"
         )
     return f"""Job META:
 {json.dumps(meta, ensure_ascii=False, indent=2)}
@@ -136,7 +135,9 @@ Job DESCRIPTION (text):
 \"\"\""""
 
 
-def enrich_jobposting(job: Dict[str, Any], focus=DEFAULT_FOCUS) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def enrich_jobposting(
+    job: Dict[str, Any], focus=DEFAULT_FOCUS
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Calls OpenAI to enrich fields. Returns (merged dict, enrichment_meta).
     Enrichment failures do not raise; metadata captures the failure.
@@ -206,7 +207,9 @@ def enrich_jobposting(job: Dict[str, Any], focus=DEFAULT_FOCUS) -> Tuple[Dict[st
 LLM_SCORING_VERSION = "1.0.0"
 
 
-def llm_score_job(job: Dict[str, Any], focus: Any, heuristic_result: Dict[str, Any]) -> Dict[str, Any]:
+def llm_score_job(
+    job: Dict[str, Any], focus: Any, heuristic_result: Dict[str, Any]
+) -> Dict[str, Any]:
     """
     Ask an LLM to provide a holistic score and German requirement summary.
     Returns a dict with llm_score and related metadata.

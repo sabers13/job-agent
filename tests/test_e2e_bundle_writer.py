@@ -21,7 +21,9 @@ def test_bundle_writer_creates_valid_metadata_json(tmp_path: Path):
     enrichment_meta = {"ok": True, "debug_tags": {"a", "b"}}
 
     assets = generate_bundle(job, scoring)
-    out_dir = write_bundle(str(tmp_path), job, assets, scoring, seed_slug="seed", enrichment_meta=enrichment_meta)
+    out_dir = write_bundle(
+        str(tmp_path), job, assets, scoring, seed_slug="seed", enrichment_meta=enrichment_meta
+    )
 
     meta_path = Path(out_dir) / "metadata.json"
     assert meta_path.exists()
@@ -30,4 +32,3 @@ def test_bundle_writer_creates_valid_metadata_json(tmp_path: Path):
     assert meta["job"]["title"] == "Junior Data Analyst"
     assert meta["scoring"]["score"] == 77
     assert meta["enrichment_meta"]["debug_tags"] == ["a", "b"]
-

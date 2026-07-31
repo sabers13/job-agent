@@ -32,10 +32,16 @@ class FocusConfig:
             "Data/BI Intern",
         }
     )
-    exclude_titles_any: Set[str] = field(default_factory=lambda: {"Senior", "Lead", "Principal", "Head", "Manager"})
-    locations_any: Set[str] = field(default_factory=lambda: {"Deutschland", "NRW", "Dortmund", "Cologne", "Düsseldorf", "Essen"})
+    exclude_titles_any: Set[str] = field(
+        default_factory=lambda: {"Senior", "Lead", "Principal", "Head", "Manager"}
+    )
+    locations_any: Set[str] = field(
+        default_factory=lambda: {"Deutschland", "NRW", "Dortmund", "Cologne", "Düsseldorf", "Essen"}
+    )
     include_skills_any: Set[str] = field(default_factory=lambda: {"Python", "SQL"})
-    nice_to_have: Set[str] = field(default_factory=lambda: {"Power BI", "DAX", "Power Query", "Pandas", "NumPy"})
+    nice_to_have: Set[str] = field(
+        default_factory=lambda: {"Power BI", "DAX", "Power Query", "Pandas", "NumPy"}
+    )
     excluded_locations: Set[str] = field(default_factory=set)
     min_german_level: Optional[str] = "B1"
     requires_student_status: bool = True

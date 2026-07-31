@@ -20,8 +20,12 @@ JOB_LINK_RE = re.compile(
 )
 RESULT_COUNT_RE = re.compile(r"(\d[\d\.]*)\s+Treffer", re.IGNORECASE)
 PAGE_LAST_RE = re.compile(r"data-page-last=\"(\d+)\"")
-JSON_LD_RE = re.compile(r"<script[^>]+type=\"application/ld\+json\"[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+JSON_LD_RE = re.compile(
+    r"<script[^>]+type=\"application/ld\+json\"[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE
+)
 PER_PAGE_DEFAULT = 25
+
+
 def _with_page(url: str, page_num: int) -> str:
     u = urlparse(url)
     qs = parse_qs(u.query)
@@ -31,10 +35,15 @@ def _with_page(url: str, page_num: int) -> str:
         qs["of"] = [str(page_num)]
     else:
         qs["page"] = [str(page_num)]
-    new_q = urlencode({k: v[0] if isinstance(v, list) and len(v)==1 else v for k, v in qs.items()}, doseq=True)
+    new_q = urlencode(
+        {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in qs.items()}, doseq=True
+    )
     return urlunparse((u.scheme, u.netloc, u.path, u.params, new_q, u.fragment))
 
-def _estimate_total_pages_from_html(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> Optional[int]:
+
+def _estimate_total_pages_from_html(
+    html: str, *, per_page: int = PER_PAGE_DEFAULT
+) -> Optional[int]:
     if not html:
         return None
     match = PAGE_LAST_RE.search(html)
@@ -66,6 +75,7 @@ def _estimate_total_pages_from_html(html: str, *, per_page: int = PER_PAGE_DEFAU
             return max(1, math.ceil(total_hits / per_page))
     return None
 
+
 def _find_total_in_jsonld(node: Any) -> Optional[int]:
     keys = ("numberOfItems", "totalJobPosting", "totalJobPostings", "totalItems", "totalResults")
     if isinstance(node, dict):
@@ -89,9 +99,10 @@ def _find_total_in_jsonld(node: Any) -> Optional[int]:
                 return result
     return None
 
+
 async def _accept_cookies(page):
     selectors = [
-        '#onetrust-accept-btn-handler',
+        "#onetrust-accept-btn-handler",
         'button[aria-label="Accept all"]',
         'button:has-text("Accept")',
         'button:has-text("Alle akzeptieren")',
@@ -103,6 +114,7 @@ async def _accept_cookies(page):
             return
         except:
             pass
+
 
 async def _extract_links(page) -> List[str]:
     hrefs = await page.eval_on_selector_all(
@@ -117,8 +129,10 @@ async def _extract_links(page) -> List[str]:
     seen, uniq = set(), []
     for u in out:
         if u not in seen:
-            seen.add(u); uniq.append(u)
+            seen.add(u)
+            uniq.append(u)
     return uniq
+
 
 async def _extract_job_entries(
     page,
@@ -153,7 +167,9 @@ async def _extract_job_entries(
             continue
 
         posted_label = None
-        date_node = await node.query_selector("[data-at='job-item-date'], .job-item__date, .job-item__date--desktop")
+        date_node = await node.query_selector(
+            "[data-at='job-item-date'], .job-item__date, .job-item__date--desktop"
+        )
         if date_node:
             posted_label = (await date_node.inner_text() or "").strip()
         if not posted_label:
@@ -178,6 +194,7 @@ async def _extract_job_entries(
         for link in fallback_links:
             entries.append({"url": link, "title": None, "posted_label": None, "posted_dt": None})
     return entries
+
 
 async def _safe_goto(page, url: str, try_accept_cookies: bool = False) -> None:
     """
@@ -212,6 +229,7 @@ async def _safe_goto(page, url: str, try_accept_cookies: bool = False) -> None:
                 except Exception as e2:
                     last_err = e2
     raise last_err
+
 
 async def search_stepstone_pw(
     seed_url: str,
@@ -294,7 +312,8 @@ async def search_stepstone_pw(
                     if url in seen_urls:
                         continue
                     seen_urls.add(url)
-                    all_jobs.append(job); added += 1
+                    all_jobs.append(job)
+                    added += 1
                     if max_jobs and len(all_jobs) >= max_jobs:
                         break
 
@@ -319,7 +338,12 @@ async def search_stepstone_pw(
                 if target_pages and p >= target_pages:
                     break
                 if empty_streak >= 5:
-                    logger.debug("Stopping {} after {} empty pages ({} total urls)", seed_url, empty_streak, len(all_jobs))
+                    logger.debug(
+                        "Stopping {} after {} empty pages ({} total urls)",
+                        seed_url,
+                        empty_streak,
+                        len(all_jobs),
+                    )
                     break
 
                 p += 1
@@ -343,7 +367,9 @@ async def search_stepstone_pw(
                 "url": job["url"],
                 "title": job.get("title"),
                 "posted_label": job.get("posted_label"),
-                "posted_iso": isoformat_utc(job["posted_dt"]) if isinstance(job.get("posted_dt"), datetime) else None,
+                "posted_iso": isoformat_utc(job["posted_dt"])
+                if isinstance(job.get("posted_dt"), datetime)
+                else None,
             }
             for job in all_jobs
         ],

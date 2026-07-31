@@ -143,8 +143,12 @@ def cache_put(url: str, payload: Dict[str, Any], focus: Optional[FocusConfig] = 
             "cached_at": _now_iso(),
             "cache_version": settings.cache_version,
             "url": url,
-            "focus_profile": (focus.profile_name if (focus and settings.cache_per_profile) else None),
-            "focus_hash": (_focus_fingerprint(focus) if (focus and settings.cache_per_profile) else None),
+            "focus_profile": (
+                focus.profile_name if (focus and settings.cache_per_profile) else None
+            ),
+            "focus_hash": (
+                _focus_fingerprint(focus) if (focus and settings.cache_per_profile) else None
+            ),
             "scoring_versions": {
                 "heuristic_version": scoring.get("heuristic_version"),
                 "version": scoring.get("version"),
@@ -158,4 +162,3 @@ def cache_put(url: str, payload: Dict[str, Any], focus: Optional[FocusConfig] = 
         )
     except Exception:
         logger.warning("cache_put failed; continuing", exc_info=True)
-

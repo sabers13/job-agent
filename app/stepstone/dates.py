@@ -6,9 +6,7 @@ from typing import Optional
 
 
 RELATIVE_RE = re.compile(r"vor\s+(\d+)\s+([a-zäöüß]+)", re.IGNORECASE)
-ABSOLUTE_DATE_RE = re.compile(
-    r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})", re.IGNORECASE
-)
+ABSOLUTE_DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})", re.IGNORECASE)
 
 UNIT_TO_DELTA = {
     "sekunde": "seconds",
@@ -84,7 +82,9 @@ def _days_in_month(year: int, month: int) -> int:
     return (next_month - this_month).days
 
 
-def parse_stepstone_listing_date(label: Optional[str], *, now: Optional[datetime] = None) -> Optional[datetime]:
+def parse_stepstone_listing_date(
+    label: Optional[str], *, now: Optional[datetime] = None
+) -> Optional[datetime]:
     if not label:
         return None
     reference = now or _now_utc()

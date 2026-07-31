@@ -56,6 +56,7 @@ class AggregateReportRequest(_Base):
 
 # --- Responses --------------------------------------------------------------
 
+
 class FetchMeta(_Base):
     backend: Optional[str] = None
     attempts: Optional[Any] = None

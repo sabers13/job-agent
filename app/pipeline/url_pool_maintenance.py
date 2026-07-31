@@ -182,9 +182,7 @@ def prune_unavailable_stepstone_urls(
                     access_denied += 1
                     aborted = True
                     if logger:
-                        logger.warning(
-                            f"Access denied while checking {url} (kept in pool): {err}"
-                        )
+                        logger.warning(f"Access denied while checking {url} (kept in pool): {err}")
                     for t in tasks:
                         if not t.done():
                             t.cancel()

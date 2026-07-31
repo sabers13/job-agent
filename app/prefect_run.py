@@ -19,7 +19,12 @@ from .pipeline.state import load_state, save_state
 from .stepstone.search_http import search_stepstone
 from .stepstone.search_playwright import search_stepstone_pw
 from .pipeline.output import write_summary
-from .pipeline.url_pool import append_pool_entries, load_pool_set, normalize_url, pool_path_for_profile
+from .pipeline.url_pool import (
+    append_pool_entries,
+    load_pool_set,
+    normalize_url,
+    pool_path_for_profile,
+)
 from .common.utils import ensure_dir
 from .stepstone.dates import parse_iso8601_utc
 
@@ -182,7 +187,9 @@ def _process_job_task(
     try:
         focus = get_focus_config(profile_key) if profile_key else DEFAULT_FOCUS
     except Exception as exc:
-        logger.warning("Unknown profile_key=%s; falling back to DEFAULT_FOCUS (%s)", profile_key, exc)
+        logger.warning(
+            "Unknown profile_key=%s; falling back to DEFAULT_FOCUS (%s)", profile_key, exc
+        )
         focus = DEFAULT_FOCUS
 
     try:
@@ -234,9 +241,7 @@ def _process_job_task(
     job = details.get("job") or {}
     scoring = details.get("scoring")
     if scoring:
-        logger.debug(
-            f"Score components for {url} ({seed_slug}): {scoring.get('components')}"
-        )
+        logger.debug(f"Score components for {url} ({seed_slug}): {scoring.get('components')}")
 
     score_val = scoring.get("score") if isinstance(scoring, dict) else None
     llm_score = scoring.get("llm_score") if isinstance(scoring, dict) else None
@@ -317,9 +322,7 @@ def crawl_and_save_flow(
         result = _search_seed_task(seed)
         _write_seed_urls(run_dir, seed, result, list_cutoff_iso)
         filtered_urls = result.get("filtered_urls") or result.get("urls", [])
-        logger.info(
-            f"Seed {seed.slug} collected {len(filtered_urls)} urls."
-        )
+        logger.info(f"Seed {seed.slug} collected {len(filtered_urls)} urls.")
 
     new_state = {
         **state,
@@ -509,7 +512,9 @@ def process_run_flow(
 
     analysis_path = run_path / "analysis_summary.json"
     try:
-        analysis_path.write_text(json.dumps(analysis_entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        analysis_path.write_text(
+            json.dumps(analysis_entries, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         logger.info(f"Wrote analysis summary to {analysis_path}")
     except Exception as exc:
         logger.warning("Failed to write analysis summary: %s", exc)
@@ -559,7 +564,9 @@ def process_run_flow(
         run_metrics["potential_applications_path"] = None
     metrics_path = run_path / "run_metrics.json"
     try:
-        metrics_path.write_text(json.dumps(run_metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+        metrics_path.write_text(
+            json.dumps(run_metrics, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         logger.info(f"Wrote run metrics to {metrics_path}")
     except Exception as exc:
         logger.warning("Failed to write run metrics: %s", exc)
@@ -578,7 +585,9 @@ def process_run_flow(
     try:
         stamp = datetime.now(timezone.utc).isoformat().replace(":", "-")
         output_path = run_path / f"process_result_{stamp}.json"
-        output_path.write_text(json.dumps(flow_output, ensure_ascii=False, indent=2), encoding="utf-8")
+        output_path.write_text(
+            json.dumps(flow_output, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         logger.info(f"Saved flow result snapshot to {output_path}")
     except Exception as exc:
         logger.warning("Failed to persist flow result snapshot: %s", exc)
@@ -596,7 +605,9 @@ def _parse_cli_args() -> argparse.Namespace:
     sub = parser.add_subparsers(dest="command", required=True)
 
     crawl_parser = sub.add_parser("crawl", help="Run the crawl_and_save_flow.")
-    crawl_parser.add_argument("--seeds-file", type=Path, help="Path to a JSON file with seed definitions.")
+    crawl_parser.add_argument(
+        "--seeds-file", type=Path, help="Path to a JSON file with seed definitions."
+    )
     crawl_parser.add_argument(
         "--list-cutoff-iso",
         type=str,
@@ -617,7 +628,9 @@ def _parse_cli_args() -> argparse.Namespace:
     )
 
     process_parser = sub.add_parser("process", help="Run the process_run_flow.")
-    process_parser.add_argument("--cutoff-iso", type=str, default=None, help="ISO8601 cutoff date for stale detection.")
+    process_parser.add_argument(
+        "--cutoff-iso", type=str, default=None, help="ISO8601 cutoff date for stale detection."
+    )
     process_parser.add_argument(
         "--profile-key",
         type=str,

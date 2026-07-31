@@ -126,13 +126,22 @@ def find_profile_dir(outputs_base: Path, profile_key: str, user_id: Optional[str
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile-key", required=True, help="e.g. junior_data_bi")
-    ap.add_argument("--snapshots", nargs="+", required=True,
-                    help='Snapshot directories or json globs, e.g. "scripts/2025-11-04T*/urls-*.json"')
+    ap.add_argument(
+        "--snapshots",
+        nargs="+",
+        required=True,
+        help='Snapshot directories or json globs, e.g. "scripts/2025-11-04T*/urls-*.json"',
+    )
     ap.add_argument("--outputs-base", default="output", help='Outputs base dir (default: "output")')
     ap.add_argument("--user-id", default=None, help="Optional: force user_id directory name")
-    ap.add_argument("--run-id-prefix", default="import", help="Prefix for run_id field (default: import)")
-    ap.add_argument("--seen-at", default=None,
-                    help="Optional ISO or YYYY-MM-DD; if omitted uses now() for entries")
+    ap.add_argument(
+        "--run-id-prefix", default="import", help="Prefix for run_id field (default: import)"
+    )
+    ap.add_argument(
+        "--seen-at",
+        default=None,
+        help="Optional ISO or YYYY-MM-DD; if omitted uses now() for entries",
+    )
     args = ap.parse_args()
 
     outputs_base = Path(args.outputs_base)
@@ -186,7 +195,7 @@ def main() -> None:
         fname = jf.name
         fallback_slug = None
         if fname.startswith("urls-") and fname.endswith(".json"):
-            fallback_slug = fname[len("urls-"):-len(".json")]
+            fallback_slug = fname[len("urls-") : -len(".json")]
         seed_slug = seed_slug_from_payload(payload, fallback_slug)
 
         # run_id: import-<snapshotfolder>
@@ -202,12 +211,14 @@ def main() -> None:
             if nu in already:
                 continue
             already.add(nu)
-            new_entries.append({
-                "url": nu,
-                "seen_at": seen_at,
-                "run_id": run_id,
-                "seed_slug": seed_slug,
-            })
+            new_entries.append(
+                {
+                    "url": nu,
+                    "seen_at": seen_at,
+                    "run_id": run_id,
+                    "seed_slug": seed_slug,
+                }
+            )
             added += 1
 
     appended = append_pool_entries(pool_path, new_entries)

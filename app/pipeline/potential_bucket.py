@@ -53,5 +53,7 @@ def decide_potential(
         return PotentialDecision(False, final_score, llm_score, "missing llm_score")
 
     if final_score < final_cutoff and llm_score > llm_cutoff:
-        return PotentialDecision(True, final_score, llm_score, f"final<{final_cutoff} and llm>{llm_cutoff}")
+        return PotentialDecision(
+            True, final_score, llm_score, f"final<{final_cutoff} and llm>{llm_cutoff}"
+        )
     return PotentialDecision(False, final_score, llm_score, "not potential")

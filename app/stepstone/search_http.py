@@ -22,11 +22,15 @@ JOB_LINK_RE = re.compile(
 )
 RESULT_COUNT_RE = re.compile(r"(\d[\d\.]*)\s+Treffer", re.IGNORECASE)
 PAGE_LAST_RE = re.compile(r"data-page-last=\"(\d+)\"")
-JSON_LD_RE = re.compile(r"<script[^>]+type=\"application/ld\+json\"[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+JSON_LD_RE = re.compile(
+    r"<script[^>]+type=\"application/ld\+json\"[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE
+)
 PER_PAGE_DEFAULT = 25
+
 
 def _abs(base: str, href: str) -> str:
     return urljoin(base, href)
+
 
 def _extract_job_links(html: str, base_url: str) -> List[str]:
     soup = BeautifulSoup(html, "html.parser")
@@ -46,6 +50,7 @@ def _extract_job_links(html: str, base_url: str) -> List[str]:
 
     return sorted(hrefs)
 
+
 def _with_page(url: str, page: int) -> str:
     """Insert or override ?page=N (or ?of=N) for pagination."""
     u = urlparse(url)
@@ -56,8 +61,11 @@ def _with_page(url: str, page: int) -> str:
         qs["of"] = [str(page)]
     else:
         qs["page"] = [str(page)]
-    new_q = urlencode({k: v[0] if isinstance(v, list) and len(v)==1 else v for k, v in qs.items()}, doseq=True)
+    new_q = urlencode(
+        {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in qs.items()}, doseq=True
+    )
     return urlunparse((u.scheme, u.netloc, u.path, u.params, new_q, u.fragment))
+
 
 def _extract_posted_label(card: BeautifulSoup) -> Optional[str]:
     for selector in ("[data-at='job-item-date']", ".job-item__date", ".job-item__date--desktop"):
@@ -128,6 +136,7 @@ def _extract_job_entries(
             )
     return entries
 
+
 def _estimate_total_pages(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> Optional[int]:
     """
     Best-effort extraction of the total number of result pages from the StepStone HTML.
@@ -171,6 +180,7 @@ def _estimate_total_pages(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> Opt
 
     return None
 
+
 def _find_total_in_jsonld(node: Any) -> Optional[int]:
     keys = ("numberOfItems", "totalJobPosting", "totalJobPostings", "totalItems", "totalResults")
     if isinstance(node, dict):
@@ -193,6 +203,7 @@ def _find_total_in_jsonld(node: Any) -> Optional[int]:
             if result:
                 return result
     return None
+
 
 def search_stepstone(
     seed_url: str,
@@ -263,7 +274,12 @@ def search_stepstone(
                 break
             empty_streak = empty_streak + 1 if added == 0 else 0
             if empty_streak >= 5:
-                logger.debug("Stopping {} after {} empty pages ({} total urls)", seed_url, empty_streak, len(all_jobs))
+                logger.debug(
+                    "Stopping {} after {} empty pages ({} total urls)",
+                    seed_url,
+                    empty_streak,
+                    len(all_jobs),
+                )
                 break
 
             p += 1
