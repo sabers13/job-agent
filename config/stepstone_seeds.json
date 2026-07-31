@@ -142,5 +142,167 @@
       "head",
       "chief"
     ]
+  },
+  {
+    "slug": "power-bi",
+    "seed_url": "https://www.stepstone.de/jobs/power-bi/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "sql",
+    "seed_url": "https://www.stepstone.de/jobs/sql/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "ai",
+    "seed_url": "https://www.stepstone.de/jobs/ai/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "machine-learning",
+    "seed_url": "https://www.stepstone.de/jobs/machine-learning/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "backend",
+    "seed_url": "https://www.stepstone.de/jobs/backend/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "werkstudent-data",
+    "seed_url": "https://www.stepstone.de/jobs/werkstudent-data/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "werkstudent-it",
+    "seed_url": "https://www.stepstone.de/jobs/werkstudent-it/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "software-developer",
+    "seed_url": "https://www.stepstone.de/jobs/software-developer/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
+  },
+  {
+    "slug": "api-development",
+    "seed_url": "https://www.stepstone.de/jobs/api-development/",
+    "use_playwright": false,
+    "delay_sec": 1.2,
+    "max_pages": 80,
+    "max_jobs": null,
+    "exclude_titles_any": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "director",
+      "berater",
+      "head",
+      "chief"
+    ]
   }
 ]

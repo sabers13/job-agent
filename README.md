@@ -39,6 +39,39 @@ You can then use:
 
 ---
 
+## Quick Start (Initial Run)
+
+Open two terminals in the repo root:
+
+**Terminal A**
+
+```bash
+source .venv/bin/activate
+set -a; source .env.dev; set +a
+# Use a local Prefect home to avoid migration/version conflicts
+export PREFECT_HOME="$PWD/.prefect"
+prefect server start --host 127.0.0.1 --port 8373
+```
+
+**Terminal B**
+
+```bash
+source .venv/bin/activate
+set -a; source .env.dev; set +a
+export PREFECT_HOME="$PWD/.prefect"
+export PREFECT_API_URL=http://127.0.0.1:8373/api
+uvicorn app.fastapi_run:app --host 127.0.0.1 --port 5001 --reload
+```
+
+GUI:
+
+* Login: `http://127.0.0.1:5001/gui/login`
+* Batch runs (Prefect): `http://127.0.0.1:5001/gui/run` → **Batch (Prefect)**
+
+If Prefect prompts for `PREFECT_API_URL`, enter `http://127.0.0.1:8373/api`.
+
+---
+
 ## Prerequisites
 
 ### System
@@ -146,6 +179,7 @@ Run Prefect server in its own terminal:
 ```bash
 source .venv/bin/activate
 set -a; source .env.dev; set +a
+export PREFECT_HOME="$PWD/.prefect"
 
 prefect server start --host 127.0.0.1 --port 8373
 ```
@@ -170,9 +204,19 @@ Run the API in a second terminal:
 ```bash
 source .venv/bin/activate
 set -a; source .env.dev; set +a
+export PREFECT_HOME="$PWD/.prefect"
+export PREFECT_API_URL=http://127.0.0.1:8373/api
 
 uvicorn app.fastapi_run:app --host 127.0.0.1 --port 5001 --reload
 ```
+
+Quick health check (verify DB connectivity):
+
+```bash
+curl -s http://127.0.0.1:5001/health
+```
+
+Expected: `"db_ok": true`. If it is `false`, make sure you loaded `.env.dev` in the same terminal before starting `uvicorn`.
 
 FastAPI in browser:
 
