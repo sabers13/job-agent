@@ -1,0 +1,8 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [".venv", "output", ".prefect", "alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]   # errors, pyflakes, import sort, pyupgrade, bugbear
+ignore = ["E501"]                      # let the formatter own line length

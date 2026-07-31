@@ -38,3 +38,21 @@ prompt.md
 temp.md
 scripts/2025-11-04T042041Z/
 scripts/2025-11-14T061336Z/
+# Runtime / generated
+.prefect/
+output/
+graphify-out/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Secrets / local
+.env
+.env.dev
+jar.txt
+
+# Personal — not part of the codebase
+cv_2026_main.html
+article.md
+job_agent_magazine_article.md
