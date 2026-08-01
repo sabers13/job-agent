@@ -32,6 +32,27 @@ restarting buys accuracy and money at the same time.
 
 ---
 
+## Concurrency limit
+
+**At most one Claude Code session at a time.** Never two.
+
+The permitted maximum is:
+
+```
+1 × Claude Code  (writing, on its own branch)
+1 × Codex        (writing, on its own branch)
+1 × Chat         (read-only — cannot collide)
+```
+
+Two writers must never share a branch. If a task would need a second Claude Code
+session, it waits.
+
+This also means: close the current Claude Code session before opening the next one.
+A session that has run its CLOSE prompt is finished — do not keep it open "just in
+case".
+
+---
+
 ## Claude Code
 
 ### CLOSE — paste this verbatim, no edits needed

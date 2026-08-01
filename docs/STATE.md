@@ -26,7 +26,13 @@ Phases 0–2 complete. Slice 1 is green, so **CP‑1 is due and blocks Slice 3**
 | Slice 2.5 spike · Slice 2.9 `app/domain/` | ⬜ in the plan (R4, R10) |
 | Slices 3–10, Phase 5 | ⬜ |
 
-Working on `main` (deliberate). `origin/main` is at `f195ece`; **22 commits unpushed**.
+Working on `main` (deliberate). `origin/main` is at `f195ece`; **nothing since then has
+been pushed** — the whole restructure exists on one machine only.
+
+> Do not record an absolute commit count here. Writing it creates a commit, which makes
+> the number wrong the instant it is written — `9b03785 "correct unpushed count to 22"`
+> was itself the 23rd, and it stalled a Codex run on a STATE-versus-disk mismatch.
+> Anything self-invalidating belongs in `git`, not in STATE.md.
 Everything since `f195ece` exists on one machine only. `refactor/restructure` is a
 separate worktree still parked at `660a6a0`.
 
