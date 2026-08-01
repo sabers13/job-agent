@@ -28,7 +28,9 @@ Phases 0–2 complete. Slice 1 is green, so **CP‑1 is now due and blocks Slice
 | Slice 2.9 — extract `app/domain/` | ⬜ written into the plan (R10). Closes A7 |
 | Slices 3–10, Phase 5 | ⬜ |
 
-Working on `main` (deliberate). `origin/main` is at `f195ece`; **14 commits unpushed**.
+Working on `main` (deliberate). `origin/main` is at `f195ece`; **18 commits unpushed**
+(14 from this restructure, plus the 4 pre-baseline chores up to `660a6a0`).
+Everything since `f195ece` exists on one machine only.
 
 ## Gate (`ci/baseline.json`)
 
@@ -109,6 +111,10 @@ Read these before trusting a green gate.
 - **Codex** — cold every task by design. `AGENTS.md` + `tasks/slice-NN.md` is the whole
   context.
 - **Chat** — new session per checkpoint. `Read docs/STATE.md. I'm at CP‑n.`
+
+`/slice-brief` and `/slice-review` do **not** exist yet — `.claude/commands/` is deferred
+to Phase 3 ([AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) §8 step 7). Write briefs from an
+explicit prompt against §2's schema until then. `make report SLICE=… BASE=…` does exist.
 
 Never paste state into a new session. Point at files.
 

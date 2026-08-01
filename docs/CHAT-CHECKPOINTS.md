@@ -100,6 +100,12 @@ features from memory; walk in confirming or overruling a table backed by evidenc
    So: **do not fix A10 before this session.** The right fix depends on the answer.
 2. Triage the 78 broad `except` handlers (backlog A3) — which hide dead features, which
    are load-bearing.
+3. **Auth posture — backlog A12.** 18 of 42 routes are unauthenticated. Slice 1 pinned
+   that as the *current* contract, deliberately without endorsing it. Decide which of
+   the 18 should stay public. It is a product question, not a code one, and it must be
+   settled before Phase 5 builds a UI against those routes — and before the container
+   image is offered to anyone. Route-by-route, using the inventory
+   `tests/contracts/test_route_inventory.py` already derives.
 3. Bucket C — behavior and feature changes. Currently empty and deliberately yours to
    fill. Decide *what* changes; the changes themselves still land after Phase 4.
 4. Amend slice scope for anything dropped.
