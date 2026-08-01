@@ -130,7 +130,11 @@ def test_max_bytes_is_capped(make_run) -> None:
 
     chunk, offset = run_manager.read_log_chunk(run_id, offset=0, max_bytes=10**9)
 
-    assert len(chunk) == run_manager.LOG_CHUNK_MAX_BYTES
+    # Byte length, not `len(chunk)`. The cap is a byte budget, and the two agree only
+    # because this body is ASCII — on multi-byte content a capped chunk has fewer
+    # characters than bytes, so `len(chunk)` would be asserting the wrong quantity and
+    # passing here by coincidence.
+    assert len(chunk.encode("utf-8")) == run_manager.LOG_CHUNK_MAX_BYTES
     assert offset == run_manager.LOG_CHUNK_MAX_BYTES
 
 
