@@ -34,18 +34,21 @@ restarting buys accuracy and money at the same time.
 
 ## Concurrency limit
 
-**At most one Claude Code session at a time.** Never two.
-
-The permitted maximum is:
+**One writer at a time.** Chosen deliberately over the theoretical maximum.
 
 ```
-1 × Claude Code  (writing, on its own branch)
-1 × Codex        (writing, on its own branch)
-1 × Chat         (read-only — cannot collide)
+1 × writer  (Claude Code OR Codex — never both)
+1 × Chat    (read-only — cannot collide, run it whenever)
 ```
 
-Two writers must never share a branch. If a task would need a second Claude Code
-session, it waits.
+Two agents writing concurrently is possible — separate branches in separate git
+worktrees — but it is not worth it here. Each worktree needs its own `.venv` (165
+pinned dependencies) before it can run the gate, and the payoff is a merge you then
+have to resolve. The failure mode it risks — two agents contradicting each other in
+ways that surface later as hard-to-attribute bugs — is exactly what this whole plan
+is organised to avoid.
+
+So: finish, close, merge, then start the next. Chat runs alongside anything.
 
 This also means: close the current Claude Code session before opening the next one.
 A session that has run its CLOSE prompt is finished — do not keep it open "just in
