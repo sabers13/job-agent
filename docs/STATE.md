@@ -12,19 +12,42 @@ _Last updated: 2026-08-01_
 
 ## Where we are
 
-Phases 0–2 complete. Slice 1 is green, so **CP‑1 is due and blocks Slice 3**.
+Phases 0–2 complete. **CP‑1 ran and returned NOT TRUSTWORTHY.** The fix list is
+[docs/CP-1-REVIEW.md](CP-1-REVIEW.md). Slice 2 is **halted**; Slice 3 stays **blocked**.
 
 | | Status |
 | --- | --- |
 | Phases 0–2 — baseline, architecture, plan + review (R1–R10, D1–D4) | ✅ |
 | Slice 0 — gate infrastructure | ✅ `bfbcaaf` |
 | Bugfixes A6, A8, A9 | ✅ `75d1924`, `0e5af61`, `20ae054` — each with its proof hash |
-| Slice 1 — contract test suite | ✅ `8b0116e`. 208 passed, 0 failed, 0 skipped |
+| Slice 1 — contract test suite | ✅ `8b0116e` — but see CP‑1: green ≠ trustworthy |
 | Slice 2 brief for Codex | ✅ `99218ce` → `tasks/slice-02.md` |
-| **CP‑1 — oracle review** | 🔴 **due. Blocks Slice 3 and everything after** |
-| Slice 2 — lint + packaging | ⬜ briefed, not started. Independent of CP‑1 |
+| **CP‑1 — oracle review** | 🔴 **RETURNED NOT TRUSTWORTHY.** CP‑1 B1–B7 outstanding |
+| CP‑1 B4 — log-chunk UTF‑8 corruption | ✅ `a539f56`, test-first at `ea93e34`. Merged |
+| Suite hermeticity — `.env.dev` leak | ✅ `bf88f64` |
+| **Slice 2 — lint + packaging** | 🛑 **HALTED.** Briefed, not started |
+| Slice 3 | 🛑 blocked by CP‑1 |
 | Slice 2.5 spike · Slice 2.9 `app/domain/` | ⬜ in the plan (R4, R10) |
-| Slices 3–10, Phase 5 | ⬜ |
+| Slices 4–10, Phase 5 | ⬜ |
+
+CP‑1's verdict in one line: **seven places where a test's name and docstring claimed a
+property the test could not fail to detect the absence of.** An incomplete oracle is
+safe — the gap shows as low coverage. An oracle that asserts what it does not check is
+not, because everything downstream is graded against it. Two of the seven were not test
+defects at all but live bugs, each found by following the test that claimed to pin it.
+
+Two items are already closed, both test-first:
+
+- **CP‑1 B4** — `read_log_chunk` split UTF‑8 codepoints at chunk boundaries and decoded with
+  `errors="replace"`, so the bytes were destroyed on both sides of the boundary and
+  never recovered. Live corruption inside a must-never-break contract. Note the fix
+  CP‑1 sketched has a starvation bug — see the contract note in
+  [refactor-plan.md](refactor-plan.md) Slice 5.
+- **Suite hermeticity** — `tests/conftest.py` used `os.environ.setdefault`, so a sourced
+  `.env.dev` kept its real `mssql+pyodbc` URL and the "offline" suite opened a live
+  connection to SQL Server during `TestClient`'s lifespan. This is why 208/0 could not
+  be reproduced on another machine: the result depended on whether that machine's
+  container was up. See backlog **A13** before anyone retries this as a fixture fix.
 
 Working on `main` (deliberate). `origin/main` is at `f195ece`; **nothing since then has
 been pushed** — the whole restructure exists on one machine only.
@@ -39,11 +62,19 @@ separate worktree still parked at `660a6a0`.
 ## Gate (`ci/baseline.json`) — measured, not remembered
 
 ```
-pytest    208 passed, 0 failed, 0 skipped, 1 deselected (external)
+pytest    226 passed, 0 failed, 0 skipped, 1 deselected (external)
 pyright   32 errors    (basic; off=0, standard=32, strict=1036)
 ruff      747 findings (676 auto-fixable — that is Slice 2; expect 31 after)
 imports   2 broken     (both from A7, one edge)
 ```
+
+208 → 226: 8 from `tests/test_suite_hermeticity.py`, 10 from CP‑1 B4. Banked in `d9f4ce7` —
+`pytest_passed` is the one `HIGHER_IS_BETTER` key, so it is the ratchet moving in the
+permitted direction.
+
+**The old 208 was not a comparable number.** It was measured with an ambient
+environment leaking in, so it meant something different on every machine. 226 is
+reproducible: verified byte-identical with and without `.env.dev` sourced.
 
 Coverage is a **reported metric, never a gate** (R3): `fastapi_run.py` 50%,
 `run_manager.py` 82%, `scoring.py` 78%, `pipeline/pipeline.py` **22%**,
@@ -62,21 +93,54 @@ Coverage is a **reported metric, never a gate** (R3): `fastapi_run.py` 50%,
 
 ## Known gaps in the oracle
 
+**Read [CP-1-REVIEW.md](CP-1-REVIEW.md) first — it supersedes this list.** These are the
+gaps that were *visible* before the review. CP‑1's finding is that the more dangerous
+gaps were the invisible ones: tests that read as covering a property while being
+structurally incapable of failing on it.
+
 - **`tests/integration/test_pipeline_offline.py` does not exist.** The directory is
   empty and untracked. `pipeline/pipeline.py` is at **22%** — it *dropped* when the
   legacy end-to-end test left the gate and nothing replaced it. Branch
   `fix/pipeline-offline` was planned this session and **never created**; no work exists.
 - `prefect_run.py` at 0% — Slice 8 rewrites it, verified differentially (D2/R7).
 - 18 of 42 routes are unauthenticated (**A12**) — pinned as the current contract, not
-  endorsed. On the CP‑3 agenda.
+  endorsed. On the CP‑3 agenda. Note CP‑1 **B5**: the 401 sweep is exhaustive over all 24
+  protected routes, which makes the auth story *read* as complete, but "rejects a
+  stranger" and "rejects a logged-in stranger" are different properties and only the
+  first is checked. The A12 question is about the 18; B5 is about the other 24.
+- `app/pipeline/parsers.py` has **zero** coverage in the new suite (CP‑1 **S6**): the
+  `job_html` fixture and `tests/fixtures/jobs/job_stepstone_1.html` are read by nothing.
+  Combined with the missing integration test, the parse → score → artifact path is
+  covered at one of its three stages.
 
-## Next three actions
+## Next four actions
 
-1. **Run Slice 2** — `tasks/slice-02.md` is written and Codex-ready. Mechanical,
-   independent of CP‑1, clears 676 findings and the `--no-verify` friction below.
-2. **CP‑1** — hand the contract suite to Chat. Blocks Slice 3.
+In order. Everything here is CP‑1 remediation — **Slice 2 does not resume until CP‑1
+comes back clean**, because Slice 2's own verification is graded against this oracle.
+
+1. **CP‑1 B1, B2, B3, B6, B7** — one commit against `tests/`, plus two constant promotions in
+   `app/`. B1–B3 are the `copy.deepcopy` fixes to the scoring invariants (shallow copies
+   and shared set references make three assertions unfireable); B6 promotes the accept
+   threshold and `LOG_CHUNK_MAX_BYTES` to constants the app owns, so the test asserts
+   *about* the value instead of duplicating it. **B7** —
+   `test_health_db_reports_reachability` — is promoted out of S1 into this batch: it
+   asserts `in (200, 503)` under a docstring claiming SQLite, and that is the assertion
+   that concealed the live DB connection above.
+2. **CP‑1 B5** — `other_user` fixture plus a cross-tenant sweep over the DB-backed protected
+   routes. Ownership is currently asserted for 3 of 24. **If any route returns 200, stop:
+   that is a live authorisation bug and an escalation, not a test fix.**
 3. **Write `tests/integration/test_pipeline_offline.py`** on `fix/pipeline-offline`, or
-   explicitly accept 22% on the parse → score → artifact path.
+   explicitly accept 22% on the parse → score → artifact path. Slice 3 moves
+   `stepstone/` into `sources/` and this is the only test that would notice if the
+   parse → score handoff broke during the move.
+4. **Re-run CP‑1** against the repaired suite. Only a clean verdict unblocks Slice 3 —
+   and resumes Slice 2.
+
+S1–S6 stay before Slice 5 (minus B7, promoted); L1–L4 before Slice 7.
+
+> **These are CP‑1's B numbers, from [CP-1-REVIEW.md](CP-1-REVIEW.md) — not `backlog.md`
+> bucket B.** Two independent B sequences are live at once and they collide: CP‑1 B4 is
+> the log-chunk UTF‑8 bug, backlog B4 is promoting `_now_iso`. Always write the prefix.
 
 ## Friction worth knowing
 

@@ -9,14 +9,21 @@ The structural work is sound — the route inventory derives from the live app, 
 mostly relational, and the fixture comments record real traps instead of restating the
 code. None of that is in question.
 
-What fails the CP-1 bar is narrower and worse: **six places where a test's name and
+What fails the CP-1 bar is narrower and worse: **seven places where a test's name and
 docstring claim a property the test cannot fail to detect the absence of.** An oracle
 that is merely incomplete is safe — the gap is visible as low coverage. An oracle that
 asserts a property it does not check is not, because it spends the reviewer's attention
-and returns nothing. All six read as covered.
+and returns nothing. All seven read as covered.
 
-One of the six (**B4**) is not a test defect but a live data-corruption bug in the
-log-streaming contract, found by following the test that claims to pin it.
+Two of the seven are not test defects but live bugs, each found by following the test
+that claims to pin it:
+
+- **B4** — data corruption in the log-streaming contract. Fixed test-first (`ea93e34`
+  red, `a539f56` green).
+- **B7** — a live SQL Server connection inside the offline suite, concealed by an
+  assertion accepting both outcomes. Environment half fixed (`bf88f64`); the assertion
+  is still open. Originally filed under S1 and promoted, because "wide accept set" and
+  "wide accept set that hid a real defect" are not the same severity.
 
 Severities: **B** blocks Slice 3. **S** should land before Slice 5 (the first slice that
 moves run-lifecycle code). **L** is hardening — latent today, cheap now, expensive after
@@ -173,6 +180,11 @@ fix is free of risk.
 ---
 
 ## B4 — Live bug: log streaming corrupts multi-byte characters at chunk boundaries
+
+> ✅ **FIXED** — `ea93e34` (test, red) then `a539f56` (code, green). The analysis below
+> stands; **the suggested code fix does not** — see the note in §Exit criteria. It stalls
+> the offset when `max_bytes` is narrower than the character, trading corruption for a
+> poll loop that never terminates.
 
 `app/gui_runs/run_manager.py:161-166`
 
@@ -369,9 +381,70 @@ three copies agree.
 
 ---
 
+## B7 — `test_health_db_reports_reachability` hid a live database connection
+
+_Promoted out of S1 after the fact. Filed there as one of eight wide accept sets; it
+turned out to be the assertion that concealed B4's sibling finding, so it blocks Slice 3
+with the rest of the B list rather than waiting for Slice 5._
+
+`tests/contracts/test_health_and_pages_api.py`
+
+```python
+def test_health_db_reports_reachability(client_unauthed) -> None:
+    """SQLite is reachable in tests, so this is the healthy path."""
+    response = client_unauthed.get("/health/db")
+
+    assert response.status_code in (200, 503), response.text
+```
+
+The docstring asserts a fact about the environment. The code asserts nothing: 200 and
+503 are the only two codes the route can return, so the test passes unconditionally.
+
+That gap is what made the environment leak invisible. `tests/conftest.py` seeded its
+variables with `os.environ.setdefault`, so a sourced `.env.dev` — the shell AGENTS.md
+§Commands documents as normal — kept its real `mssql+pyodbc` URL. `app/db/health.py`
+binds `SessionLocal` at import, so `db_engine`'s monkeypatch cannot reach `check_db`,
+and `check_db` is what `TestClient`'s lifespan calls. The "offline, no DB container"
+suite therefore opened a live connection to the developer's SQL Server on every client
+fixture, and **this test graded it green** — the accept set was wide enough to swallow
+both the healthy SQLite path it claims to describe and a real database it never
+mentions.
+
+Measured: `check_db()` returned `ok=True` in 0.31s against a running container, and all
+208 tests passed against mssql. With the container down the run blocks on the ODBC login
+timeout instead. Same defect, two presentations, neither visible in the result.
+
+The environment half is fixed (`bf88f64` — unconditional assignment plus
+`tests/test_suite_hermeticity.py`, which asserts on the engine the app actually reaches
+rather than on the strings conftest wrote). Backlog **A13** records why no fixture could
+have fixed it. This item is the remaining half: the assertion that let it pass.
+
+**Fix.** The suite now guarantees SQLite, so the docstring's claim is true and can be
+asserted:
+
+```python
+def test_health_db_reports_reachability(client_unauthed) -> None:
+    """The suite pins SQLite (tests/test_suite_hermeticity.py), so this is the healthy path."""
+    response = client_unauthed.get("/health/db")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["ok"] is True
+```
+
+If that ever fails, the DB the suite reaches is not the one it pinned — which is exactly
+the signal that was missing.
+
+**Note the general lesson, now in AGENTS.md §Conventions:** no assertion may accept both
+the success and the failure state. B1, B2 and this item are three instances of one
+failure mode, and it is the mode that produced this review's verdict.
+
+---
+
 ## Should fix
 
 ### S1 — Eight assertions that cannot fail
+
+_`test_health_db_reports_reachability` was one of these. It is now **B7** above._
 
 ```python
 assert response.status_code in (200, 404)                 # start_batch_run
@@ -581,24 +654,39 @@ container* — that verification is not in the gate.
 
 ## Exit criteria
 
-Not trustworthy as-is. Trustworthy after **B1–B6**.
+Not trustworthy as-is. Trustworthy after **B1–B7**.
 
-B1, B2, B3, B5, B6 are test-side and can land as one commit against `tests/` — none of
-them touch `app/`, so they do not collide with Slice 2's ruff pass on `slice/02`.
+B1, B2, B3, B6, B7 are test-side and can land as one commit against `tests/` — only B6's
+two constant promotions touch `app/`, so they do not collide with Slice 2's ruff pass on
+`slice/02`.
 
 **B4 is different and should not ride along.** The test is test-side; the fix in
 `read_log_chunk` is a behaviour change to a contract `AGENTS.md` names as
 must-never-break. Test-first, own commit, own branch — same treatment A1 gets.
 
-Suggested ordering:
+Ordering:
 
-1. **B4 test only**, committed red, on `fix/log-chunk-utf8`. Proves the bug from the gate.
-2. **B4 code fix** on the same branch. Gate green again.
-3. **B1, B2, B3, B6** — one commit, `tests/` plus two constant promotions in `app/`.
-4. **B5** — `other_user` fixture plus the cross-tenant sweep. If any route returns 200,
+1. ✅ **B4 test only**, committed red on `fix/log-chunk-utf8` (`ea93e34`, 7 failed).
+   Proved the bug from the gate.
+2. ✅ **B4 code fix** on the same branch (`a539f56`). Gate green again.
+
+   Note the fix sketched in §B4 above is **not sufficient as written**: retreating to
+   the last complete codepoint stalls the offset when `max_bytes` is narrower than the
+   character, and the GUI polls that offset forever — the suggested test would hang
+   rather than fail. The landed fix extends the read to complete the character instead.
+   `max_bytes` is consequently a **soft** limit, by up to 3 bytes; recorded in
+   [refactor-plan.md](refactor-plan.md) Slice 5 so a later test does not "correct" it.
+3. ✅ **Suite hermeticity** (`bf88f64`) — not on the original list. Found while
+   reproducing B4's environment; it is the precondition for trusting any of these
+   numbers, since the suite was grading a different database depending on the machine.
+4. ⬜ **B1, B2, B3, B6, B7** — one commit, `tests/` plus two constant promotions in `app/`.
+5. ⬜ **B5** — `other_user` fixture plus the cross-tenant sweep. If any route returns 200,
    stop: that is a live authorisation bug and an escalation, not a test fix.
-5. **S1–S6** before Slice 5.
-6. **L1–L4** before Slice 7.
+6. ⬜ **Re-run CP-1** against the repaired suite. Slice 3 unblocks on a clean verdict;
+   Slice 2 resumes then too, since its verification is graded against this oracle.
+7. **S1–S6** (minus B7, promoted) before Slice 5.
+8. **L1–L4** before Slice 7.
 
 `ci/baseline.json` moves down, not up: B4's test and B5's sweep add tests, so the pytest
-count rises, which is the ratchet moving in the permitted direction.
+count rises, which is the ratchet moving in the permitted direction. Banked once already
+— 208 → 226 in `d9f4ce7`.

@@ -177,6 +177,36 @@ Accurate as of the start of the restructure. Update as slices land.
   Playwright directly from `pipeline/` or `sources/`.
 - Tests live in `tests/`, mirror the package path of what they test, and must not
   make live network calls. Use fixtures.
+- **No assertion may accept both the success and the failure state.**
+  `assert response.status_code in (200, 503)` is not an assertion — it is a comment
+  that costs a test run. If both outcomes pass, the test reports "covered" while
+  checking nothing, and it spends a reviewer's attention to discover that.
+
+  This is not hypothetical here. Three tests in this repo could not fail:
+
+  | Test | Why it could not fail |
+  | --- | --- |
+  | `test_scoring_is_deterministic` | `score_job` mutates its input, so call 2 gets a different object. It asserted `f(x) == f(mutate(x))`, not `f(x) == f(x)`. |
+  | `test_scoring_mutates_the_job_dict_in_exactly_one_known_way` | The "profile was not mutated" check compared a `set` against a **reference** to itself — `s == s`, unconditionally true. |
+  | `test_health_db_reports_reachability` | `in (200, 503)` under a docstring reading "SQLite is reachable in tests". |
+
+  The third is why this is a rule and not a style note. It **concealed a live SQL
+  Server connection inside a green suite** — the suite was reaching a real database,
+  and the assertion was wide enough to accept that as success. See backlog **A13**.
+
+  When a route genuinely cannot be pinned to one code offline, assert the negative
+  that still has content — `!= 404 and != 500` — rather than enumerating an accept
+  set broad enough to swallow the failure. Never write an accept set containing 500:
+  that permits an unhandled server error.
+- **Config and hermeticity tests must not assert directly on values that may hold
+  secrets.** pytest rewrites assertions to print every operand, so
+  `assert settings.database_url.startswith("sqlite:")` dumps the full URL —
+  credentials included — into the failure output and therefore into CI logs. Compare
+  into a local first and assert on that: a dialect name, a scheme, a boolean, a
+  length. Measured, not theorised: the first draft of
+  `tests/test_suite_hermeticity.py` printed the dev SQL Server password on failure.
+  Note SQLAlchemy's `URL.__repr__` masks the password *component* but not query
+  parameters, and `mssql+pyodbc` carries its credentials inside `odbc_connect`.
 - Logging: structured and run-scoped. Anything happening inside a run must be
   traceable in that run's `run.log`.
 

@@ -877,6 +877,41 @@ status_path()  log_path()  write_status()  load_status()
 latest_path()  write_latest()  read_log_chunk()
 ```
 
+Plus the two private helpers `read_log_chunk` depends on — `_utf8_sequence_length()` and
+`_last_sequence_start()`. They are not in the list above because they are internal, but
+they must move with it or the codepoint-boundary guarantee below silently disappears.
+
+**Contract note — `max_bytes` is a SOFT limit.** Since `a539f56` (CP‑1 B4), a chunk may
+exceed `max_bytes` **by up to 3 bytes**. Do not "tighten" this into
+`len(chunk) <= max_bytes`; the assertion is intuitive, and wrong.
+
+`read_log_chunk` guarantees `next_offset` is always a UTF‑8 codepoint boundary. Before
+B4 it was not: the read was cut at `offset + max_bytes` and decoded with
+`errors="replace"`, so a boundary landing mid-character produced U+FFFD *and* returned an
+offset still pointing mid-sequence. The next poll resumed there and produced more
+replacement characters. The bytes were destroyed on both sides and never recovered — on a
+German-market job board whose logs carry city names and posting text.
+
+The obvious fix — retreat to the last complete codepoint — is not sufficient on its own,
+and the version sketched in [CP-1-REVIEW.md](CP-1-REVIEW.md) §B4 has this bug. When
+`max_bytes` is narrower than the character at `offset`, retreating empties the buffer, so
+the function returns an empty chunk at an *unchanged* offset and the GUI's poll loop spins
+on it forever. Availability failure replacing a corruption one. The read is therefore
+**extended** to complete that character instead, which is the only case a chunk exceeds
+`max_bytes`.
+
+Two consequences worth stating, both pinned by tests in `test_log_streaming.py`:
+
+- Assert on **byte length**, not `len(chunk)`. `test_max_bytes_is_capped` originally
+  asserted `len(chunk) == LOG_CHUNK_MAX_BYTES` and passed only because its body is ASCII.
+- At **EOF** the shortening does not apply. A truncated tail is genuinely truncated —
+  there is no later poll to complete it — so it decodes to U+FFFD and the offset reaches
+  the end. Withholding it would leave `finished` false and the GUI polling forever.
+
+`LOG_CHUNK_MAX_BYTES` remains a hard *safety* cap on memory per request; 3 bytes of slack
+does not weaken it. The HTTP layer duplicates the literal at
+[fastapi_run.py:1832](app/fastapi_run.py#L1832) — that is CP‑1 **B6**, still open.
+
 Plus the private `_now_iso()`, which `fastapi_run.py` calls directly at
 [L1610](app/fastapi_run.py#L1610), [L1614](app/fastapi_run.py#L1614) — a private-symbol
 dependency across a package boundary. Promote it to `common/utils.timestamp_iso()`, which
