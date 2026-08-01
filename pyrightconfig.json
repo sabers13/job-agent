@@ -1,0 +1,18 @@
+{
+  "include": ["app", "tests", "scripts"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    "output",
+    ".prefect",
+    "alembic/versions"
+  ],
+
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false
+}

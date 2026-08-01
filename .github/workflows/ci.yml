@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "refactor/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # settings.py evaluates env at import time, so these must be set before any
+  # `import app.*`. Values are throwaway -- the default suite is offline.
+  JOBAGENT_ENV: ci
+  JOBAGENT_JWT_SECRET: ci-not-a-real-secret
+  # File-based, NOT sqlite:///:memory:. app/db/engine.py passes pool_size,
+  # max_overflow and pool_timeout to create_engine() unconditionally; an
+  # in-memory SQLite URL gets a SingletonThreadPool, which rejects them, and
+  # collection dies with TypeError before a single test runs. A file URL gets a
+  # QueuePool and accepts them. Tracked as backlog A5; the real fix is dialect
+  # dispatch in Slice 10.
+  JOBAGENT_DATABASE_URL: "sqlite:///./ci_gate.db"
+  JOBAGENT_USE_PLAYWRIGHT: "false"
+  JOBAGENT_USE_LLM_ENRICH: "false"
+  JOBAGENT_USE_LLM_SCORING: "false"
+
+jobs:
+  gate:
+    name: Ratchet gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pinned dependencies
+        # requirements.lock.txt, not requirements.txt. The loose file has drifted:
+        # it declares pypdf~=4.3 and pytest~=8.3 while the environment that
+        # produces the recorded baseline runs 6.5.0 and 9.1.1. Installing the
+        # loose set would measure a different codebase than the one baselined.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+
+      - name: Install pyright
+        # Version-pinned: pyright's default checks change between releases, and an
+        # unpinned upgrade would move the ratchet for reasons unrelated to the code.
+        # Must match the version the baseline was measured with.
+        run: npm install -g pyright@1.1.411
+
+      - name: Run ratchet gate
+        # pytest + pyright + ruff + import-linter, each compared to ci/baseline.json.
+        run: python ci/gate.py
+
+      - name: Coverage (reported, not gated until Slice 1)
+        if: always()
+        run: |
+          pytest --cov=app --cov-report=term-missing -q \
+            | tail -60 || true
+
+  build-image:
+    name: Container builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t job-agent:ci .
+      - name: App boots inside the image
+        # Uses the image's own JOBAGENT_DATABASE_URL default (file-based SQLite
+        # under /data), so this also proves the shipped default actually works.
+        run: |
+          docker run --rm \
+            -e JOBAGENT_JWT_SECRET=ci-not-a-real-secret \
+            job-agent:ci \
+            python -c "
+          from app.fastapi_run import app
+          from app.db.engine import get_engine
+          get_engine()
+          assert len(app.routes) == 46, f'route count changed: {len(app.routes)}'
+          print(f'{len(app.routes)} routes, engine OK')
+          "
+
+# ---------------------------------------------------------------------------
+# Deliberately NOT here yet, so this file stays honest:
+#
+#   * Postgres/SQLite migration matrix -- `alembic upgrade head` currently
+#     targets SQL Server via pyodbc. The matrix lands with Slice 10
+#     (dialect-agnostic persistence), where it is the verification command.
+#   * Coverage thresholds -- floors get set after Slice 1 measures them, then
+#     ratchet upward. Gating on 39% today would just encode the problem.
+#   * Playwright browser install -- the default suite is offline by design
+#     (TEST-STRATEGY section 3). Live-fetch tests belong to a `-m external`
+#     suite that is run deliberately, never in the gate.
+# ---------------------------------------------------------------------------

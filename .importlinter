@@ -1,0 +1,133 @@
+; Architecture as an executable contract.
+;
+;     .venv/bin/lint-imports                       # human-readable
+;     .venv/bin/python ci/gate.py --only imports   # ratcheted, for CI
+;
+; Two classes of contract live here, and the distinction matters:
+;
+;   ENFORCED TODAY  -- reference only packages that exist now. These must stay green
+;                      from this commit on. A break is a real regression.
+;   PENDING         -- reference app.services / app.sources, which Slices 5 and 3
+;                      create. Commented out, because import-linter ABORTS THE WHOLE
+;                      RUN on an unresolvable module rather than counting it as a
+;                      violation -- leaving them live would make the ratchet
+;                      unmeasurable, not merely red.
+;
+; Each pending block names the slice that enables it. Uncomment it in that slice.
+; See docs/refactor-plan.md and docs/AGENT-WORKFLOW.md section 7.
+
+[importlinter]
+root_package = app
+
+; ---------------------------------------------------------------------------
+; Layering. Parenthesised layers are optional -- import-linter tolerates them
+; not existing. Un-parenthesise each as its slice lands.
+;
+;   app.services  -> Slice 5 creates it
+;   app.sources   -> Slice 3 creates it
+;   app.config    -> exists as a DIRECTORY but has no __init__.py, so it is a
+;                    namespace package and grimp cannot see it. Backlog B2 /
+;                    Slice 2 adds the __init__.py. Until then config's position
+;                    in the layering is NOT enforced.
+; ---------------------------------------------------------------------------
+[importlinter:contract:layers]
+name = Layered architecture
+type = layers
+layers =
+    app.api
+    (app.services)
+    app.pipeline
+    (app.sources)
+    app.fetching
+    app.db
+    (app.config)
+    app.common
+
+; ---------------------------------------------------------------------------
+; ENFORCED TODAY
+; ---------------------------------------------------------------------------
+
+[importlinter:contract:no-api-imports]
+name = Nothing imports app.api
+type = forbidden
+source_modules =
+    app.pipeline
+    app.db
+    app.fetching
+    app.common
+forbidden_modules =
+    app.api
+
+[importlinter:contract:pipeline-source-agnostic]
+name = pipeline does not import a concrete source
+type = forbidden
+source_modules =
+    app.pipeline
+forbidden_modules =
+    app.stepstone
+
+[importlinter:contract:common-is-a-leaf]
+name = common is a leaf (imports nothing else from app)
+type = forbidden
+source_modules =
+    app.common
+forbidden_modules =
+    app.api
+    app.db
+    app.fetching
+    app.pipeline
+    app.stepstone
+    app.auth
+
+[importlinter:contract:db-below-pipeline]
+name = db does not import pipeline or api
+type = forbidden
+source_modules =
+    app.db
+forbidden_modules =
+    app.pipeline
+    app.api
+
+[importlinter:contract:fetching-knows-no-job-boards]
+name = fetching does not import a job board or the pipeline
+type = forbidden
+source_modules =
+    app.fetching
+forbidden_modules =
+    app.stepstone
+    app.pipeline
+
+; ---------------------------------------------------------------------------
+; PENDING -- uncomment in the slice named. Do not uncomment early: an
+; unresolvable module aborts the run and the ratchet stops reporting.
+; ---------------------------------------------------------------------------
+
+; Slice 3 -- after app/stepstone/ becomes app/sources/stepstone/.
+; Replaces `pipeline-source-agnostic` above; delete that one at the same time.
+; [importlinter:contract:pipeline-source-agnostic-v2]
+; name = pipeline does not import a concrete source
+; type = forbidden
+; source_modules =
+;     app.pipeline
+; forbidden_modules =
+;     app.sources.stepstone
+
+; Slice 5 -- after app/gui_runs/ becomes app/services/runs/.
+; Fold app.services into `no-api-imports` above at the same time.
+; [importlinter:contract:services-no-api]
+; name = services does not import app.api
+; type = forbidden
+; source_modules =
+;     app.services
+; forbidden_modules =
+;     app.api
+
+; Slice 8 -- after app/orchestration/ exists.
+; [importlinter:contract:orchestration-below-services]
+; name = orchestration does not import services or api
+; type = forbidden
+; source_modules =
+;     app.orchestration
+; forbidden_modules =
+;     app.services
+;     app.api
