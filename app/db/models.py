@@ -5,7 +5,6 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -14,10 +13,10 @@ from sqlalchemy import (
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 from sqlalchemy.types import UnicodeText
 
 from app.db.base import Base
+from app.db.types import UtcDateTime, utcnow
 
 
 class User(Base):
@@ -26,9 +25,7 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
     profiles: Mapped[list["Profile"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -54,13 +51,11 @@ class Resume(Base):
     parsed_json: Mapped[str | None] = mapped_column(UnicodeText(), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.sysdatetimeoffset(),
-        onupdate=func.sysdatetimeoffset(),
+        UtcDateTime(),
+        default=utcnow,
+        onupdate=utcnow,
         nullable=False,
     )
 
@@ -83,9 +78,7 @@ class Profile(Base):
     profile_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
     focus_config_json: Mapped[str] = mapped_column(UnicodeText(), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="profiles")
     runs: Mapped[list["Run"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
@@ -117,11 +110,9 @@ class Run(Base):
     params_json: Mapped[str | None] = mapped_column(UnicodeText(), nullable=True)
     summary_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="runs")
     profile: Mapped["Profile"] = relationship(back_populates="runs")
@@ -150,9 +141,7 @@ class RunItem(Base):
     bucket: Mapped[str | None] = mapped_column(String(64), nullable=True)
     output_dir: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
     run: Mapped["Run"] = relationship(back_populates="items")
 
@@ -177,12 +166,8 @@ class UrlPoolEntry(Base):
 
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    first_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.sysdatetimeoffset(), nullable=False
-    )
+    first_seen_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
     profile: Mapped["Profile"] = relationship(back_populates="url_pool")
 
