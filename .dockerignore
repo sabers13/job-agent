@@ -1,0 +1,39 @@
+.git
+.github
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.prefect
+*.egg-info
+
+# Secrets -- never bake these into a layer
+.env
+.env.*
+!.env.example
+jar.txt
+cookies*.txt
+
+# Local artifacts and data
+output/
+graphify-out/
+local_dev.db
+*.sqlite
+*.db
+*.log
+temp/
+temp_log_analyze/
+
+# Docs and personal files -- not needed at runtime
+docs/
+refactor/
+n8n workflows/
+images/
+*.md
+!README.md
+*.pdf
+*.zip
+cv_2026_main.html
