@@ -305,6 +305,35 @@ def test_user(db_session):
 
 
 @pytest.fixture
+def other_user(db_session):
+    """A second persisted user, for cross-tenant isolation (CP1-5).
+
+    "Rejects a stranger" and "rejects a *logged-in* stranger" are different contracts and
+    only the first was covered: the 401 sweep is exhaustive over all 24 protected routes,
+    which made the second look covered too. Ownership was actually asserted for 3 routes,
+    all of them filesystem-backed, using a forged `user_id` **string** — never a real
+    `User` row, so no DB-backed route could be probed at all.
+
+    This is a real row so that a resource can be *owned* by someone other than the caller.
+    """
+    import uuid
+    from datetime import UTC, datetime
+
+    from app.db.models import User
+
+    user = User(
+        id=uuid.uuid4(),
+        email="stranger@example.com",  # not .test: EmailStr rejects reserved TLDs
+        password_hash="not-a-real-hash",
+        created_at=datetime.now(UTC),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
 def file_profile_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect the file-backed profile store into `tmp_path`.
 

@@ -18,13 +18,21 @@ Rules for this file:
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 
+from app.pipeline import ACCEPT_THRESHOLD
 from app.pipeline.scoring import score_job
 
-# The only absolute allowed here. This is a product decision, not a tuning artefact.
-ACCEPT_THRESHOLD = 70
-
+# `ACCEPT_THRESHOLD` is the one absolute this file is allowed to reference, because it is
+# a product decision rather than a tuning artefact. It is **imported**, not declared.
+#
+# It used to be `ACCEPT_THRESHOLD = 70` right here, which made it a *copy* of the
+# production value rather than an assertion *about* it: changing `output.py` to 75 would
+# have moved the product's real accept/reject bucketing while every test stayed green.
+# That is flaw F2 one level up — a test bound not to a config value but to a duplicate of
+# one. CP1-6.
 
 # --------------------------------------------------------------------------- #
 # 1. Determinism
@@ -32,9 +40,18 @@ ACCEPT_THRESHOLD = 70
 
 
 def test_scoring_is_deterministic(job_factory, profile_factory) -> None:
+    """`f(x) == f(x)`, which needs two *equal but distinct* inputs to be that at all.
+
+    `score_job` writes `job["language_requirements"]` unconditionally, so passing the
+    same object twice asserts `f(x) == f(mutate(x))` — idempotence of the mutation, not
+    determinism. Worse, the seeded key routes call 2 down `resolve_language_items`'
+    structured branch instead of its regex branch, so a genuine order-dependence
+    introduced in the regex path would be stabilised by the cache and pass. CP1-1.
+    """
     job, focus = job_factory(), profile_factory()
 
-    first, second = score_job(job, focus), score_job(job, focus)
+    first = score_job(copy.deepcopy(job), focus)
+    second = score_job(copy.deepcopy(job), focus)
 
     assert first["score"] == second["score"]
     assert first["components"] == second["components"]
@@ -46,17 +63,37 @@ def test_scoring_is_deterministic(job_factory, profile_factory) -> None:
 
 
 def test_scoring_one_job_does_not_affect_the_next(job_factory, profile_factory) -> None:
-    """Module-level caches or mutable defaults would show up here and nowhere else."""
+    """Module-level caches or mutable defaults would show up here and nowhere else.
+
+    Deep-copied per call for the reason in `test_scoring_is_deterministic`: `target` was
+    being mutated by its own first call before `after` was computed, so the comparison
+    was not between two scorings of the same input. CP1-1.
+    """
     focus = profile_factory()
     target = job_factory(title="Data Analyst", description_text="SQL and Python")
     other = job_factory(title="Head of Engineering", description_text="10+ years leading teams")
 
-    before = score_job(target, focus)
-    score_job(other, focus)
-    after = score_job(target, focus)
+    before = score_job(copy.deepcopy(target), focus)
+    score_job(copy.deepcopy(other), focus)
+    after = score_job(copy.deepcopy(target), focus)
 
     assert before["score"] == after["score"]
     assert before["components"] == after["components"]
+
+
+# Every attribute of `FocusConfig` that holds a mutable container. `frozen=True` blocks
+# `focus.titles_any = ...` but not `focus.titles_any.add(...)`, and `DEFAULT_FOCUS` is a
+# module-level instance whose sets are shared process-wide — so one in-place mutation
+# would corrupt every subsequent job in the same process.
+MUTABLE_FOCUS_FIELDS = (
+    "titles_any",
+    "exclude_titles_any",
+    "locations_any",
+    "excluded_locations",
+    "include_skills_any",
+    "nice_to_have",
+    "search_seeds",
+)
 
 
 def test_scoring_mutates_the_job_dict_in_exactly_one_known_way(
@@ -64,16 +101,29 @@ def test_scoring_mutates_the_job_dict_in_exactly_one_known_way(
 ) -> None:
     """Characterisation, not approval. `score_job` writes into the caller's dict.
 
-    It sets `language_requirements` in place when the key is absent. Pinning the exact
-    surface means any *additional* mutation added later fails here loudly, instead of
-    silently coupling a caller's dict to scoring internals. Backlog **A11**.
+    It sets `language_requirements` unconditionally (`scoring.py:892`) — not "when the
+    key is absent", which is what this docstring claimed until CP1-3 checked. Pinning the
+    exact surface means any *additional* mutation added later fails here loudly, instead
+    of silently coupling a caller's dict to scoring internals. Backlog **A11**.
 
-    The profile must not be mutated at all — that one is asserted as an absolute,
-    because a shared `FocusConfig` is reused across every job in a run.
+    Both snapshots are deep copies, and that is the whole point of the test:
+
+    * `dict(job)` is shallow, so an in-place edit of a nested list or dict compared equal
+      to itself and was reported as unmutated. `resolve_language_items` does exactly that
+      — `best["source"] = ...` at `scoring.py:419` writes into a dict the caller still
+      holds — so A11 was understated, not merely unproven. CP1-3.
+    * `focus_before` held **references** to the profile's sets, so the "profile was not
+      mutated" loop compared each set against itself: `s == s`, unconditionally true. The
+      one assertion the docstring called an absolute was the one that could never fire.
+      CP1-2.
+
+    No such profile mutation exists today (verified: no `focus.<attr>.{add,update,remove,
+    discard,clear}` in `scoring.py`), so this is a guard that did not guard rather than a
+    live bug — worth fixing precisely because Slices 3–7 will trust it.
     """
     job, focus = job_factory(), profile_factory()
-    job_before = dict(job)
-    focus_before = {k: getattr(focus, k) for k in ("titles_any", "include_skills_any")}
+    job_before = copy.deepcopy(job)
+    focus_before = {k: copy.deepcopy(getattr(focus, k)) for k in MUTABLE_FOCUS_FIELDS}
 
     score_job(job, focus)
 
@@ -82,6 +132,25 @@ def test_scoring_mutates_the_job_dict_in_exactly_one_known_way(
 
     for key, value in focus_before.items():
         assert getattr(focus, key) == value, f"score_job mutated the shared profile: {key}"
+
+
+def test_rescoring_an_already_scored_job_is_stable(job_factory, profile_factory) -> None:
+    """The pipeline scores, persists, and rescores. The second pass must agree.
+
+    This is the test that owns the mutation-tolerance property, so that
+    `test_scoring_is_deterministic` can be about determinism alone. It is also the only
+    place the *structured* branch of `resolve_language_items` is reached under assertion:
+    that branch is unreachable without a pre-seeded `job["language_requirements"]`, which
+    only a previous `score_job` call produces. CP1-3.
+    """
+    job = job_factory(description_text="Sehr gute Deutschkenntnisse.")
+    focus = profile_factory()
+
+    first = score_job(job, focus)  # seeds job["language_requirements"] via the regex branch
+    second = score_job(job, focus)  # now takes the structured branch off that seed
+
+    assert first["score"] == second["score"]
+    assert first["components"] == second["components"]
 
 
 # --------------------------------------------------------------------------- #

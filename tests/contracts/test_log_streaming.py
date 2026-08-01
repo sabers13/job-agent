@@ -295,6 +295,35 @@ def test_http_log_endpoint_walks_the_file(client, test_user, make_run) -> None:
     assert second.json()["chunk"] == "line two\n"
 
 
+def test_http_honours_the_same_cap_as_the_function(client, test_user, make_run) -> None:
+    """The HTTP layer's cap is `LOG_CHUNK_MAX_BYTES`, not a second copy of `64 * 1024`.
+
+    `test_max_bytes_is_capped` pins the cap at the function level. The route duplicated
+    the literal, so the two could diverge silently and no test would notice — CP1-6. This
+    is the executable form of the promotion: it fails if the route stops deferring to the
+    constant, in either direction.
+
+    Asserted as `<=` on **byte** length, not `==` on `len(chunk)`. `max_bytes` is a soft
+    limit by up to 3 bytes so a codepoint is never split (ADR 0009), and a chunk's
+    character count is not its byte count.
+    """
+    from app.gui_runs import run_manager
+
+    run_id, run_dir = make_run(user_id=str(test_user.id))
+    _write_log(run_dir, "x" * (run_manager.LOG_CHUNK_MAX_BYTES + 5_000))
+    _seed_status(run_id, str(test_user.id))
+
+    body = client.get(
+        f"/api/run_logs/{run_id}",
+        params={"offset": 0, "max_bytes": run_manager.LOG_CHUNK_MAX_BYTES + 5_000},
+    ).json()
+
+    assert len(body["chunk"].encode("utf-8")) <= run_manager.LOG_CHUNK_MAX_BYTES + 3
+    assert body["next_offset"] <= run_manager.LOG_CHUNK_MAX_BYTES + 3
+    # ...and it really did cap: a route ignoring the ceiling would have returned the lot.
+    assert body["next_offset"] < run_manager.LOG_CHUNK_MAX_BYTES + 5_000
+
+
 def test_http_finished_only_when_terminal_and_drained(client, test_user, make_run) -> None:
     """`finished` is the GUI's signal to stop polling.
 

@@ -19,7 +19,7 @@ intermittent garbling rather than a reproducible failure. This is a German-marke
 board: run logs carry city names, job titles and posting text, so multi-byte content is
 the normal case.
 
-Found at CP‑1 (B4) by following a test that claimed to pin the property. The two relevant
+Found at CP‑1 (**CP1-4**) by following a test that claimed to pin the property. The two relevant
 tests did not intersect — one used multi-byte text but never constructed a boundary, the
 other constructed boundaries out of ASCII.
 
@@ -61,7 +61,7 @@ Two boundary cases:
   guarantee. Slice 5 moves this module and must move them with it; they are listed in
   [refactor-plan.md](../refactor-plan.md) §Slice 5 precisely because internal symbols are
   what a move drops silently.
-- The fix sketched in [CP-1-REVIEW.md](../CP-1-REVIEW.md) §B4 is retreat-only and therefore
+- The fix sketched in [CP-1-REVIEW.md](../CP-1-REVIEW.md) §CP1-4 is retreat-only and therefore
   has the starvation bug described above. That section is annotated, but anyone
   implementing from the review rather than from the code should read this first.
 

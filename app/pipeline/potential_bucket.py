@@ -3,6 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
+#: The score at or above which a job is *accepted*. A product decision, not a tuning
+#: artefact — which is why it is the one absolute `tests/unit/test_scoring_invariants.py`
+#: is allowed to reference, and why that file now imports this name instead of declaring
+#: its own copy of the number (CP1-6).
+#:
+#: It lives here rather than in `output.py` because `output.py` already imports this
+#: module; the reverse would be a cycle. It is re-exported from `app.pipeline`, so cross-
+#: package callers should use `from app.pipeline import ACCEPT_THRESHOLD`.
+#:
+#: Distinct from `settings.score_keep_threshold`, which also defaults to 70 but is
+#: user-overridable via `JOBAGENT_SCORE_KEEP_THRESHOLD`. Whether those two should be one
+#: number is a product question for CP-3; folding them together here would silently turn
+#: a configurable knob into a constant.
+ACCEPT_THRESHOLD = 70
+
 
 @dataclass(frozen=True)
 class PotentialDecision:
@@ -31,8 +46,8 @@ def _get_first(d: Mapping[str, Any], *keys: str) -> Any:
 def decide_potential(
     job: Mapping[str, Any],
     *,
-    final_cutoff: float = 70.0,
-    llm_cutoff: float = 70.0,
+    final_cutoff: float = ACCEPT_THRESHOLD,
+    llm_cutoff: float = ACCEPT_THRESHOLD,
 ) -> PotentialDecision:
     """
     Decide whether a job should be included in potential_applications/.

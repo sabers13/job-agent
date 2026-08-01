@@ -41,10 +41,13 @@ and *then* gets deleted.
 
 ## B — Touched anyway
 
-> **Numbering collision, deliberate to flag rather than renumber.** [CP-1-REVIEW.md](CP-1-REVIEW.md)
-> has its own B1–B7 meaning "blocks Slice 3". They are unrelated sequences: backlog B4 is
-> promoting `_now_iso`; CP‑1 B4 is the log-chunk UTF‑8 corruption bug. Always write the
-> prefix — "CP‑1 B4" or "backlog B4" — never a bare `B4`.
+> **The numbering collision is resolved (2026-08-02).** [CP-1-REVIEW.md](CP-1-REVIEW.md)
+> used to have its own `B1`–`B7` meaning "blocks Slice 3", overlapping this bucket for
+> seven numbers — backlog B4 is promoting `_now_iso`, CP-1's B4 was the log-chunk UTF-8
+> bug. The rule was "always write the prefix", which is a convention and therefore only as
+> reliable as the next brief that forgets it; a bare `B4` in a cold Codex prompt points at
+> the wrong task with nothing to signal it. CP-1's items are now **CP1-1 … CP1-7**.
+> **`B1`–`B8` on this page are unambiguous and mean this bucket.**
 
 | # | Item | Rides with |
 | --- | --- | --- |

@@ -4,6 +4,14 @@ _Reviewed 2026-08-01, against `8b0116e` (Slice 1 green: 208 passed, 0 failed, 0 
 
 **Verdict: not trustworthy as-is.** Fix list below.
 
+> **Numbering.** The blocking items are **CP1-1 … CP1-7**. They were originally written as
+> a bare `B1`–`B7`, which collided with `backlog.md` bucket **B** — two unrelated sequences
+> in which `B4` meant the log-chunk UTF-8 bug in one and "promote `_now_iso`" in the other.
+> A convention ("always write the prefix") is not a fix, because a brief that drops the
+> prefix once points a cold Codex run at the wrong task. Renumbered mechanically on
+> 2026-08-02; every reference in `docs/`, `ci/` and `tasks/` moved with it. The `S`
+> (should-fix) and `L` (latent) items keep their numbers — they collide with nothing.
+
 The structural work is sound — the route inventory derives from the live app, the
 `DEFAULT_FOCUS` guard is executable rather than conventional, the scoring invariants are
 mostly relational, and the fixture comments record real traps instead of restating the
@@ -18,9 +26,9 @@ and returns nothing. All seven read as covered.
 Two of the seven are not test defects but live bugs, each found by following the test
 that claims to pin it:
 
-- **B4** — data corruption in the log-streaming contract. Fixed test-first (`ea93e34`
+- **CP1-4** — data corruption in the log-streaming contract. Fixed test-first (`ea93e34`
   red, `a539f56` green).
-- **B7** — a live SQL Server connection inside the offline suite, concealed by an
+- **CP1-7** — a live SQL Server connection inside the offline suite, concealed by an
   assertion accepting both outcomes. Environment half fixed (`bf88f64`); the assertion
   is still open. Originally filed under S1 and promoted, because "wide accept set" and
   "wide accept set that hid a real defect" are not the same severity.
@@ -31,7 +39,7 @@ the routers move.
 
 ---
 
-## B1 — The determinism invariant cannot detect A11, by construction
+## CP1-1 — The determinism invariant cannot detect A11, by construction
 
 `tests/unit/test_scoring_invariants.py`
 
@@ -80,7 +88,7 @@ belongs.
 
 ---
 
-## B2 — The profile-mutation assertion is a no-op
+## CP1-2 — The profile-mutation assertion is a no-op
 
 Same file, `test_scoring_mutates_the_job_dict_in_exactly_one_known_way`:
 
@@ -118,7 +126,7 @@ focus_before = {k: copy.deepcopy(getattr(focus, k)) for k in MUTABLE_FOCUS_FIELD
 
 ---
 
-## B3 — The A11 characterisation is shallow, and misses a real second mutation
+## CP1-3 — The A11 characterisation is shallow, and misses a real second mutation
 
 Same test:
 
@@ -174,12 +182,12 @@ def test_rescoring_an_already_scored_job_is_stable(job_factory, profile_factory)
     assert first["components"] == second["components"]
 ```
 
-That test is the one that should own the mutation-tolerance property. Once it exists, B1's
+That test is the one that should own the mutation-tolerance property. Once it exists, CP1-1's
 fix is free of risk.
 
 ---
 
-## B4 — Live bug: log streaming corrupts multi-byte characters at chunk boundaries
+## CP1-4 — Live bug: log streaming corrupts multi-byte characters at chunk boundaries
 
 > ✅ **FIXED** — `ea93e34` (test, red) then `a539f56` (code, green). The analysis below
 > stands; **the suggested code fix does not** — see the note in §Exit criteria. It stalls
@@ -271,7 +279,7 @@ own test-first commit, not a Slice 5 rider.
 
 ---
 
-## B5 — Cross-tenant isolation is asserted for 3 of 24 protected routes
+## CP1-5 — Cross-tenant isolation is asserted for 3 of 24 protected routes
 
 `tests/conftest.py` defines exactly one user fixture. No second-user fixture exists
 anywhere under `tests/unit` or `tests/contracts` (`test_db_portability.py` builds `User`
@@ -332,7 +340,7 @@ authorisation bug and an escalation, not a test gap.
 
 ---
 
-## B6 — The accept threshold exists in three unlinked places
+## CP1-6 — The accept threshold exists in three unlinked places
 
 `test_scoring_invariants.py` declares:
 
@@ -348,7 +356,14 @@ constant rather than an assertion **about** it:
 | --- | --- |
 | `tests/unit/test_scoring_invariants.py:26` | `ACCEPT_THRESHOLD = 70` |
 | `app/pipeline/output.py:22` | `if score >= 70:` |
+| `app/pipeline/output.py:78` | `decide_potential(merged, final_cutoff=70.0, llm_cutoff=70.0)` |
 | `app/pipeline/potential_bucket.py:34-35` | `final_cutoff: float = 70.0, llm_cutoff: float = 70.0` |
+
+**Corrected 2026-08-02: three production copies, not two.** The row this table originally
+missed is `output.py:78`, and it is the worst of the three — it passes `70.0` explicitly as
+`decide_potential`'s `final_cutoff` and `llm_cutoff`, so it *overrides* the defaults on
+lines 34-35 rather than inheriting them. Fixing only `potential_bucket.py` would therefore
+have changed nothing at the one call site that matters, while looking like a complete fix.
 
 Change `output.py` to 75 and the accept/reject bucketing — the product's actual output —
 changes while all 208 tests stay green. That is the F2 failure mode the whole file was
@@ -379,12 +394,23 @@ both convert an untestable duplication into a testable one. If promoting the con
 Slice-scope creep, the minimum acceptable alternative is an executable check that the
 three copies agree.
 
+**Two 70s that are deliberately *not* folded in** (checked 2026-08-02, left alone):
+
+- `app/config/settings.py:63` — `score_keep_threshold`, default `70`, overridable via
+  `JOBAGENT_SCORE_KEEP_THRESHOLD`. A separate, user-tunable knob read by `prefect_run.py`,
+  `fastapi_run.py:525` and `output.py:135`. Collapsing it into `ACCEPT_THRESHOLD` would
+  make a configurable value constant — a behaviour change, not a deduplication. Whether
+  these two 70s *should* be one number is a product question for CP-3.
+- `app/fastapi_run.py:2003` — `"final<70 and llm>70"`, a human-readable fallback string in
+  a response body, not a threshold. Interpolating the constant into it is cosmetic and
+  would widen this commit's blast radius into `fastapi_run.py` for no testable gain.
+
 ---
 
-## B7 — `test_health_db_reports_reachability` hid a live database connection
+## CP1-7 — `test_health_db_reports_reachability` hid a live database connection
 
 _Promoted out of S1 after the fact. Filed there as one of eight wide accept sets; it
-turned out to be the assertion that concealed B4's sibling finding, so it blocks Slice 3
+turned out to be the assertion that concealed CP1-4's sibling finding, so it blocks Slice 3
 with the rest of the B list rather than waiting for Slice 5._
 
 `tests/contracts/test_health_and_pages_api.py`
@@ -435,7 +461,7 @@ If that ever fails, the DB the suite reaches is not the one it pinned — which 
 the signal that was missing.
 
 **Note the general lesson, now in AGENTS.md §Conventions:** no assertion may accept both
-the success and the failure state. B1, B2 and this item are three instances of one
+the success and the failure state. CP1-1, CP1-2 and this item are three instances of one
 failure mode, and it is the mode that produced this review's verdict.
 
 ---
@@ -444,7 +470,7 @@ failure mode, and it is the mode that produced this review's verdict.
 
 ### S1 — Eight assertions that cannot fail
 
-_`test_health_db_reports_reachability` was one of these. It is now **B7** above._
+_`test_health_db_reports_reachability` was one of these. It is now **CP1-7** above._
 
 ```python
 assert response.status_code in (200, 404)                 # start_batch_run
@@ -574,8 +600,8 @@ missing `tests/integration/test_pipeline_offline.py`, the parse → score → ar
 covered at exactly one of its three stages.
 
 Either wire it up or delete the fixture and the HTML file. Dead scaffolding in `conftest.py`
-reads as coverage that does not exist — which is the same failure as B1–B6, in a cheaper
-form.
+reads as coverage that does not exist — which is the same failure as CP1-1 … CP1-6, in a
+cheaper form.
 
 ---
 
@@ -633,60 +659,84 @@ container* — that verification is not in the gate.
 
 - **`tests/integration/test_pipeline_offline.py` missing; `pipeline/pipeline.py` at 22%.**
   Agreed, and it is the largest single gap — but it is a *visible* one, which is why it
-  ranks below B1–B6. Note the interaction with **S6**: `parsers.py` is also uncovered, so
+  ranks below CP1-1 … CP1-6. Note the interaction with **S6**: `parsers.py` is also uncovered, so
   the gap is wider than the 22% figure suggests. Recommend writing the integration test
   before Slice 3 rather than accepting 22%, on the grounds that Slice 3 moves
   `stepstone/` into `sources/` and this is the only test that would notice if the
   parse → score handoff broke during the move.
 
 - **A11 (`score_job` mutates the caller's dict).** The determinism invariant does **not**
-  catch it — see B1. The characterisation test that does catch it understates the surface
-  — see B3. Net: A11 is currently *under*-characterised, not over-.
+  catch it — see CP1-1. The characterisation test that does catch it understates the surface
+  — see CP1-3. Net: A11 is currently *under*-characterised, not over-.
 
 - **A12 (18 of 42 unauthenticated, pinned as current contract).** The pinning mechanism is
   good: `PUBLIC_ROUTES` as a literal compared against the live app catches drift in both
   directions, and `test_public_routes_do_not_401` documents the reasoning without
   endorsing it. The `42 ≠ 38` reconciliation in the module docstring is correct (38 in
   `fastapi_run.py` + 4 from `auth_routes.py`; verified by decorator count). No change
-  needed. The real auth gap is B5, which is about the other 24.
+  needed. The real auth gap is CP1-5, which is about the other 24.
 
 ---
 
 ## Exit criteria
 
-Not trustworthy as-is. Trustworthy after **B1–B7**.
+Not trustworthy as-is. Trustworthy after **CP1-1 … CP1-7**.
 
-B1, B2, B3, B6, B7 are test-side and can land as one commit against `tests/` — only B6's
-two constant promotions touch `app/`, so they do not collide with Slice 2's ruff pass on
-`slice/02`.
+CP1-1, CP1-2, CP1-3, CP1-6 and CP1-7 are test-side and can land as one commit against
+`tests/` — only CP1-6's two constant promotions touch `app/`, so they do not collide with
+Slice 2's ruff pass on `slice/02`.
 
-**B4 is different and should not ride along.** The test is test-side; the fix in
+**CP1-4 is different and should not ride along.** The test is test-side; the fix in
 `read_log_chunk` is a behaviour change to a contract `AGENTS.md` names as
 must-never-break. Test-first, own commit, own branch — same treatment A1 gets.
 
 Ordering:
 
-1. ✅ **B4 test only**, committed red on `fix/log-chunk-utf8` (`ea93e34`, 7 failed).
+1. ✅ **CP1-4 test only**, committed red on `fix/log-chunk-utf8` (`ea93e34`, 7 failed).
    Proved the bug from the gate.
-2. ✅ **B4 code fix** on the same branch (`a539f56`). Gate green again.
+2. ✅ **CP1-4 code fix** on the same branch (`a539f56`). Gate green again.
 
-   Note the fix sketched in §B4 above is **not sufficient as written**: retreating to
+   Note the fix sketched in §CP1-4 above is **not sufficient as written**: retreating to
    the last complete codepoint stalls the offset when `max_bytes` is narrower than the
    character, and the GUI polls that offset forever — the suggested test would hang
    rather than fail. The landed fix extends the read to complete the character instead.
    `max_bytes` is consequently a **soft** limit, by up to 3 bytes; recorded in
    [refactor-plan.md](refactor-plan.md) Slice 5 so a later test does not "correct" it.
 3. ✅ **Suite hermeticity** (`bf88f64`) — not on the original list. Found while
-   reproducing B4's environment; it is the precondition for trusting any of these
+   reproducing CP1-4's environment; it is the precondition for trusting any of these
    numbers, since the suite was grading a different database depending on the machine.
-4. ⬜ **B1, B2, B3, B6, B7** — one commit, `tests/` plus two constant promotions in `app/`.
-5. ⬜ **B5** — `other_user` fixture plus the cross-tenant sweep. If any route returns 200,
-   stop: that is a live authorisation bug and an escalation, not a test fix.
+4. ✅ **CP1-5** — `other_user` fixture plus the cross-tenant sweep, in
+   `tests/contracts/test_cross_tenant_isolation.py`. Run **first**, as a probe, because it
+   was the one remaining item that could change what happened next. **Clean verdict: no
+   DB-backed protected route serves the wrong tenant.** 15 wrong-tenant probes, all 404,
+   plus 5 positive controls that seed the *same* resources for the caller and assert 200 —
+   without those, a 404 from a mis-seeded fixture is indistinguishable from a 404 from a
+   working ownership check, and the file would certify isolation while proving only that
+   the URLs 404. Verified by mutation as well as by green: dropping the `user_id` filter
+   from `get_resume_detail` turns exactly the matching probe red.
+
+   Two findings worth carrying forward, neither a bug:
+
+   - `POST /api/my/profile` and `POST /api/my/profile/{key}` return **200** for a key
+     another user owns, correctly — they upsert a row for the *caller*, and identity is
+     `(user_id, profile_key)`. A pure status-code sweep would have had to either skip them
+     or assert something false; they are asserted on the stored state instead.
+   - `/api/profile/{key}` GET/POST/DELETE (the file-backed store, no `/my/`) are **not**
+     tenant-scoped at all — any authenticated user reads and writes the same global
+     `focus_profiles.json`. Out of scope here (not DB-backed, and D1 has already decided
+     the DB surface wins), but it belongs on the **CP-3** agenda beside A12.
+5. ✅ **CP1-1, CP1-2, CP1-3, CP1-6, CP1-7** — one commit, `tests/` plus the constant
+   promotions in `app/`. `ACCEPT_THRESHOLD` now lives in `app/pipeline/potential_bucket.py`
+   (not `output.py` — `output.py` imports that module, so the reverse would be a cycle) and
+   is re-exported from `app.pipeline`. All three production copies now resolve to it, and
+   `fastapi_run.py`'s `64 * 1024` defers to `run_manager.LOG_CHUNK_MAX_BYTES`.
 6. ⬜ **Re-run CP-1** against the repaired suite. Slice 3 unblocks on a clean verdict;
    Slice 2 resumes then too, since its verification is graded against this oracle.
-7. **S1–S6** (minus B7, promoted) before Slice 5.
+7. **S1–S6** (minus CP1-7, promoted) before Slice 5.
 8. **L1–L4** before Slice 7.
 
-`ci/baseline.json` moves down, not up: B4's test and B5's sweep add tests, so the pytest
-count rises, which is the ratchet moving in the permitted direction. Banked once already
-— 208 → 226 in `d9f4ce7`.
+`ci/baseline.json` moves down, not up: CP1-4's test and CP1-5's sweep add tests, so the pytest
+count rises, which is the ratchet moving in the permitted direction. Banked twice —
+208 → 226 in `d9f4ce7`, then 226 → 248 with the batch above. The other four numbers did not
+move (pyright 32, ruff 747, imports 2, failed 0), which is the expected result: CP1-6
+promoted constants rather than changing behaviour.

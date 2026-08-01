@@ -1829,7 +1829,11 @@ def get_run_logs(
     max_bytes = int(max_bytes or 0)
     if max_bytes <= 0:
         max_bytes = 4096
-    max_bytes = min(max_bytes, 64 * 1024)
+    # The named constant, not a second copy of `64 * 1024`. `test_max_bytes_is_capped`
+    # asserts against `run_manager.LOG_CHUNK_MAX_BYTES` at the function level, so while
+    # this literal duplicated it the HTTP layer's cap was unchecked and the two could
+    # diverge silently (CP1-6).
+    max_bytes = min(max_bytes, run_manager.LOG_CHUNK_MAX_BYTES)
 
     chunk, new_offset = run_manager.read_log_chunk(run_id, offset=offset, max_bytes=max_bytes)
     finished = status.get("status") in ("completed", "failed")

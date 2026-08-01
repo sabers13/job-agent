@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from app.config.settings import settings
-from app.pipeline.potential_bucket import decide_potential
+from app.pipeline.potential_bucket import ACCEPT_THRESHOLD, decide_potential
 from ..common.utils import ensure_dir, slugify, timestamp_iso, to_jsonable
 
 
@@ -19,7 +19,7 @@ def _score_bucket(score: int | None) -> str | None:
         return "100-90_excellent"
     if score >= 80:
         return "90-80_good"
-    if score >= 70:
+    if score >= ACCEPT_THRESHOLD:
         return "80-70_acceptable"
     return None
 
@@ -75,7 +75,10 @@ def write_bundle(
     )
 
     merged = {**job, **(scoring or {})}
-    decision = decide_potential(merged, final_cutoff=70.0, llm_cutoff=70.0)
+    # The literals here used to *override* `decide_potential`'s defaults with the same
+    # number, so fixing only that signature would have changed nothing at the one call
+    # site that matters. Pass nothing and inherit instead (CP1-6).
+    decision = decide_potential(merged)
     if is_potential_category or decision.is_potential:
         base_root = Path(root)
         run_root = base_root.parent if base_root.name == "bundles" else base_root

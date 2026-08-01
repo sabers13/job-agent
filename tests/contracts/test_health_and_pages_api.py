@@ -29,11 +29,24 @@ def test_health_config_returns_a_status(client_unauthed) -> None:
 
 
 def test_health_db_reports_reachability(client_unauthed) -> None:
-    """SQLite is reachable in tests, so this is the healthy path."""
+    """The suite pins SQLite (`tests/test_suite_hermeticity.py`), so this is the healthy path.
+
+    This assertion used to be `in (200, 503)` — the only two codes the route can return,
+    so it passed unconditionally while its docstring asserted a fact about the
+    environment. That is what made the environment leak invisible: `conftest.py` seeded
+    its variables with `os.environ.setdefault`, so a sourced `.env.dev` kept its real
+    `mssql+pyodbc` URL, `TestClient`'s lifespan opened a live connection to the
+    developer's SQL Server, and this test graded it green. The accept set was wide enough
+    to swallow both the SQLite path it claims to describe and a real database it never
+    mentions. CP1-7; backlog **A13** for why no fixture could have caught it.
+
+    If this ever fails, the database the suite reaches is not the one it pinned — which
+    is precisely the signal that was missing.
+    """
     response = client_unauthed.get("/health/db")
 
-    assert response.status_code in (200, 503), response.text
-    assert "ok" in response.json()
+    assert response.status_code == 200, response.text
+    assert response.json()["ok"] is True
 
 
 def test_health_never_requires_auth(client_unauthed) -> None:
