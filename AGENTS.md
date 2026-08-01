@@ -226,6 +226,21 @@ Accurate as of the start of the restructure. Update as slices land.
   pass and buried an 8-column bugfix inside the pyupgrade diff that `refactor-plan.md`
   reserves for Slice 2. Hooks run on staged files at commit time; running them across
   the repo is a mass rewrite wearing a lint hook's clothes.
+- **Never pass `--exclude` to `ruff`. Use `--extend-exclude`.** `--exclude` *replaces*
+  the `exclude` list in `pyproject.toml` rather than adding to it, which silently
+  re-enables `alembic/versions/`. A dry run of Slice 2 with `--exclude tests/legacy`
+  rewrote three existing migrations that way — straight through the prohibition above,
+  with nothing in the diff to signal it.
+- **Exclude `docs/` from `ruff format`.** It reformats Python code blocks *inside
+  Markdown*, so a plain `ruff format .` edits `docs/refactor-plan.md` and
+  `docs/TEST-STRATEGY.md`. The working invocation is:
+  `ruff check . --fix --extend-exclude tests/legacy,docs` then
+  `ruff format . --extend-exclude tests/legacy,docs`.
+- **A commit listed in `.git-blame-ignore-revs` must be purely mechanical.** Reproducible
+  from its parent by re-running the formatter and nothing else. Hand edits inside a
+  blame-ignored commit are invisible to `git blame` forever — ship them as a separate
+  commit. Verify reproducibility by re-running the formatter against the parent in a
+  scratch worktree and comparing `git write-tree` to the commit's tree hash.
 - Do not reintroduce a second long-running process. Eliminating the two-terminal
   startup is a core goal; anything requiring the user to open another terminal
   defeats it.
