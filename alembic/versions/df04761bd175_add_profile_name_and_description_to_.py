@@ -27,8 +27,20 @@ def upgrade() -> None:
         "profiles",
         sa.Column("description", sa.String(length=512), nullable=True),
     )
-    # Remove server default for future inserts
-    op.alter_column("profiles", "profile_name", server_default=None)
+    # Remove server default for future inserts.
+    #
+    # Backlog A9. A bare op.alter_column emits `ALTER TABLE ... ALTER COLUMN`, which
+    # SQLite has no syntax for -- `alembic upgrade head` died here with
+    # `near "ALTER": syntax error` on any fresh SQLite database.
+    #
+    # batch_alter_table at the default recreate="auto" recreates the table only on
+    # SQLite and passes straight through to a plain ALTER everywhere else, so the
+    # mssql SQL is unchanged. Proven byte-identical before/after -- see the commit
+    # message for the hash. That proof is what licenses editing this file in place
+    # rather than adding a revision (AGENTS.md, "Do not edit existing files in
+    # alembic/versions/", proof-based exception).
+    with op.batch_alter_table("profiles") as batch_op:
+        batch_op.alter_column("profile_name", server_default=None)
 
 
 def downgrade() -> None:
