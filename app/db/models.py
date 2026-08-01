@@ -11,8 +11,8 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    Uuid,
 )
-from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import UnicodeText
@@ -23,9 +23,7 @@ from app.db.base import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -44,11 +42,9 @@ class User(Base):
 class Resume(Base):
     __tablename__ = "resumes"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+        Uuid(), ForeignKey("users.id"), nullable=False, index=True
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -79,11 +75,9 @@ class Resume(Base):
 class Profile(Base):
     __tablename__ = "profiles"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+        Uuid(), ForeignKey("users.id"), nullable=False, index=True
     )
     profile_key: Mapped[str] = mapped_column(String(64), nullable=False)
     profile_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
@@ -108,14 +102,12 @@ class Profile(Base):
 class Run(Base):
     __tablename__ = "runs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+        Uuid(), ForeignKey("users.id"), nullable=False, index=True
     )
     profile_id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True),
+        Uuid(),
         ForeignKey("profiles.id"),
         nullable=False,
         index=True,
@@ -141,11 +133,9 @@ class Run(Base):
 class RunItem(Base):
     __tablename__ = "run_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     run_id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True),
+        Uuid(),
         ForeignKey("runs.id"),
         nullable=False,
         index=True,
@@ -175,11 +165,9 @@ class RunItem(Base):
 class UrlPoolEntry(Base):
     __tablename__ = "url_pool"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(), primary_key=True, default=uuid.uuid4)
     profile_id: Mapped[uuid.UUID] = mapped_column(
-        UNIQUEIDENTIFIER(as_uuid=True),
+        Uuid(),
         ForeignKey("profiles.id"),
         nullable=False,
         index=True,

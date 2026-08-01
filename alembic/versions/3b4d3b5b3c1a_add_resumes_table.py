@@ -5,11 +5,11 @@ Revises: df04761bd175
 Create Date: 2025-12-21 10:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 
 
 revision: str = "3b4d3b5b3c1a"
@@ -21,8 +21,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         "resumes",
-        sa.Column("id", UNIQUEIDENTIFIER(as_uuid=True), primary_key=True, nullable=False),
-        sa.Column("user_id", UNIQUEIDENTIFIER(as_uuid=True), nullable=False),
+        sa.Column("id", sa.Uuid(), primary_key=True, nullable=False),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("filename", sa.String(length=255), nullable=False),
         sa.Column("mime_type", sa.String(length=128), nullable=False),
         sa.Column("sha256", sa.String(length=64), nullable=False),
