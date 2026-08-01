@@ -46,6 +46,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+.coverage
+.coverage.*
+coverage.json
+htmlcov/
 
 # Secrets / local
 .env
@@ -56,3 +60,9 @@ jar.txt
 cv_2026_main.html
 article.md
 job_agent_magazine_article.md
+
+# IDE — was tracked by mistake; git rm -r --cached'd, kept on disk
+.idea/
+app/.idea/
+*.iml
+.vscode/
