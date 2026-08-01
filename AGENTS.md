@@ -215,6 +215,13 @@ Accurate as of the start of the restructure. Update as slices land.
     It does **not** license changes that alter mssql DDL, such as dropping a
     `server_default` (backlog A8). Those get a new revision.
 - Do not weaken a test to make it pass. If a test is wrong, say so and explain why.
+- **`--no-verify` is expected when a commit touches a file with pre-existing debt.**
+  The `ruff-check` hook lints whole staged *files*, not your diff, so any commit
+  touching `app/db/models.py` (12 `UP037`), `app/fastapi_run.py` or most of `app/` is
+  blocked by findings that belong to Slice 2's pyupgrade pass. Do not "just fix them" —
+  that pulls Slice 2 into an unrelated diff, which has already happened once. Use
+  `--no-verify` and say why in the commit message. `ci/gate.py` is the authoritative
+  gate; the hook is a fast local signal, not the contract.
 - **Do not run `pre-commit run --all-files`.** It has already rewritten 55 files in one
   pass and buried an 8-column bugfix inside the pyupgrade diff that `refactor-plan.md`
   reserves for Slice 2. Hooks run on staged files at commit time; running them across
