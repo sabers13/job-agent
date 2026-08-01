@@ -3,9 +3,10 @@
 Short records of decisions that were expensive to reach and would otherwise have to be
 re-argued. Each one states the context, the decision, and — most importantly — what it costs.
 
-These were written after the fact, from the reasoning in the restructure planning sessions
-(2026-07-31). They are backfilled, not contemporaneous. That is noted here rather than pretended
-away.
+**0001–0008** were written after the fact, from the reasoning in the restructure planning
+sessions (2026-07-31). They are backfilled, not contemporaneous. That is noted here rather than
+pretended away. **0009 onward are contemporaneous** — written in the session that made the
+decision.
 
 | # | Decision | Status |
 | --- | --- | --- |
@@ -17,6 +18,7 @@ away.
 | [0006](0006-orchestrator-protocol.md) | Prefect becomes an opt-in backend behind an `Orchestrator` protocol | Proposed |
 | [0007](0007-single-process-sqlite-default.md) | Single process, SQLite by default | Proposed |
 | [0008](0008-deletions-precede-extraction.md) | Keep/drop decisions come before the extraction slices | Accepted |
+| [0009](0009-log-chunks-are-codepoint-aligned.md) | Log chunks are codepoint-aligned; `max_bytes` is a soft limit | Accepted |
 
 ## Format
 
