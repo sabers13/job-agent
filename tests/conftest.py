@@ -40,14 +40,29 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # its own `tmp_path` file via the `db_engine` fixture; this URL only has to be
 # *constructible*. It is a file rather than `:memory:` for the reason in `sqlite_url`.
 #
-# `setdefault`, not assignment: a caller who exports a real URL keeps it.
+# **Assignment, not `setdefault`.** The suite owns these six variables outright.
+#
+# `setdefault` let a sourced `.env.dev` win, and `.env.dev` is the shell AGENTS.md
+# §Commands documents as normal. Its `mssql+pyodbc` URL then survived into
+# `TestClient`'s lifespan, where `_startup_checks` -> `check_db` opened a live
+# connection to the developer's SQL Server. `app/db/health.py` binds `SessionLocal`
+# at import, so `db_engine`'s monkeypatch cannot reach that path and cannot save it.
+#
+# The result was an oracle whose meaning depended on the shell it ran in: with the
+# container up, `/health/db` graded a real database and passed; with it down, the
+# run blocked on the ODBC login timeout. Neither is what these tests claim to check.
+#
+# `tests/test_suite_hermeticity.py` is the executable form of this paragraph.
 # --------------------------------------------------------------------------- #
-os.environ.setdefault("JOBAGENT_DATABASE_URL", f"sqlite:///{ROOT / '.pytest_bootstrap.db'}")
-os.environ.setdefault("JOBAGENT_JWT_SECRET", "test-secret-not-used-for-real-tokens")
-os.environ.setdefault("JOBAGENT_ENV", "test")
-os.environ.setdefault("JOBAGENT_USE_PLAYWRIGHT", "false")
-os.environ.setdefault("JOBAGENT_USE_LLM_ENRICH", "false")
-os.environ.setdefault("JOBAGENT_USE_LLM_SCORING", "false")
+TEST_ENV: dict[str, str] = {
+    "JOBAGENT_DATABASE_URL": f"sqlite:///{ROOT / '.pytest_bootstrap.db'}",
+    "JOBAGENT_JWT_SECRET": "test-secret-not-used-for-real-tokens",
+    "JOBAGENT_ENV": "test",
+    "JOBAGENT_USE_PLAYWRIGHT": "false",
+    "JOBAGENT_USE_LLM_ENRICH": "false",
+    "JOBAGENT_USE_LLM_SCORING": "false",
+}
+os.environ.update(TEST_ENV)
 
 
 # --------------------------------------------------------------------------- #
