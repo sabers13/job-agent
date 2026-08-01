@@ -1,3 +1,66 @@
+[project]
+name = "job-agent"
+version = "0.1.0"
+description = "Local-first job-search triage pipeline: crawl, normalize, score, and archive job listings."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Saber Sojudi" }]
+
+# Loose ranges declare intent. requirements.lock.txt is what actually gets
+# installed in CI and in the image -- see docs/adr/0004-dependency-locking.md.
+dependencies = [
+    "alembic~=1.17",
+    "bcrypt==3.2.2",
+    "beautifulsoup4~=4.12",
+    "email-validator~=2.3",
+    "fastapi~=0.115",
+    "httpx~=0.27",
+    "jinja2~=3.1",
+    "loguru~=0.7",
+    "openai~=1.51",
+    "passlib[bcrypt]~=1.7",
+    "playwright~=1.48",
+    "prefect~=3.1",
+    "pydantic~=2.9",
+    "pyodbc~=5.3",
+    "pypdf~=6.5",
+    "python-docx~=1.2",
+    "python-dotenv~=1.0",
+    "python-jose[cryptography]~=3.5",
+    "python-multipart~=0.0.21",
+    "sqlalchemy~=2.0",
+    "uvicorn[standard]~=0.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=9.1",
+    "pytest-asyncio~=1.4",
+    "pytest-cov~=7.0",
+    "ruff~=0.16",
+    "pre-commit~=4.0",
+    # Pinned below 2.6 deliberately: import-linter >=2.6 requires rich>=14.2,
+    # and prefect 3.1.15 requires rich<14. 2.5.2 is the newest that coexists.
+    # Revisit when prefect relaxes its rich pin.
+    "import-linter>=2.5,<2.6",
+    # Sync PostgreSQL driver, dev-only. Needed to verify migrations on the
+    # second supported dialect (backlog A9, and the Slice 10 CI matrix).
+    # pg8000 is pure Python -- no compiler, no libpq, works under
+    # --only-binary=:all: in the container build.
+    "pg8000~=1.31",
+]
+
+[project.urls]
+Repository = "https://github.com/sabers13/job-agent"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
@@ -6,3 +69,27 @@ exclude = [".venv", "output", ".prefect", "alembic/versions"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]   # errors, pyflakes, import sort, pyupgrade, bugbear
 ignore = ["E501"]                      # let the formatter own line length
+
+[tool.ruff.lint.per-file-ignores]
+# B008 is FastAPI's Depends()/Query() idiom -- a deliberate call in a default
+# argument, not the bug bugbear is looking for.
+"app/fastapi_run.py" = ["B008"]
+"app/api/*.py" = ["B008"]
+"app/auth/deps.py" = ["B008"]
+
+[tool.pytest.ini_options]
+# --strict-markers/-config turn TEST-STRATEGY's "zero skips in a green run" from
+# a convention into something the runner enforces. `external` is registered so
+# live-network tests can be written and excluded, rather than silently skipped.
+# tests/legacy is quarantined per TEST-STRATEGY section 7: it binds to internals the
+# restructure moves, so it is excluded from the gate but stays runnable on demand
+# (`pytest tests/legacy`). Delete each file as the new suite covers its ground.
+# -m "not external" deselects the live-network/browser/LLM tests. Deselected is not
+# skipped: TEST-STRATEGY requires zero skips in a green run, and a deselected test
+# does not appear as one. Run them deliberately with `pytest -m external`.
+addopts = "--strict-markers --strict-config --ignore=tests/legacy -m 'not external'"
+testpaths = ["tests"]
+markers = [
+    "external: hits a real network, DB, browser or LLM. Excluded from the gate; run with -m external.",
+]
+asyncio_mode = "strict"
