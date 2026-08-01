@@ -130,7 +130,11 @@ def test_max_bytes_is_capped(make_run) -> None:
 
     chunk, offset = run_manager.read_log_chunk(run_id, offset=0, max_bytes=10**9)
 
-    assert len(chunk) == run_manager.LOG_CHUNK_MAX_BYTES
+    # Byte length, not `len(chunk)`. The cap is a byte budget, and the two agree only
+    # because this body is ASCII — on multi-byte content a capped chunk has fewer
+    # characters than bytes, so `len(chunk)` would be asserting the wrong quantity and
+    # passing here by coincidence.
+    assert len(chunk.encode("utf-8")) == run_manager.LOG_CHUNK_MAX_BYTES
     assert offset == run_manager.LOG_CHUNK_MAX_BYTES
 
 
@@ -162,6 +166,97 @@ def test_offsets_are_byte_offsets_not_character_offsets(make_run) -> None:
 
     assert chunk == body
     assert offset == 6, "next_offset must be a byte count, not a character count"
+
+
+# A German-market job board: run logs carry city names, job titles and posting text,
+# so multi-byte content in `run.log` is the normal case rather than the exotic one.
+# `–` and `ü` are 2–3 bytes, `完` is 3, and an emoji would be 4.
+MULTIBYTE_LOG_BODY = "Düsseldorf – 完了 – für Köln\n"
+
+
+@pytest.mark.parametrize("max_bytes", [1, 2, 3, 4, 5, 7, 11, 64])
+def test_chunked_reads_reassemble_multibyte_text_losslessly(make_run, max_bytes: int) -> None:
+    """Polling a log in chunks must reproduce it exactly, whatever the chunk size.
+
+    This is the intersection the suite previously missed.
+    `test_offsets_are_byte_offsets_not_character_offsets` uses multi-byte text but
+    leaves `max_bytes` at its 4096 default, so the whole file arrives in one read and
+    no boundary is ever constructed. `test_max_bytes_is_respected_and_resumable`
+    constructs the boundary but uses `"abcdefghij"`, where every boundary is safe.
+    Neither can see a codepoint split across two chunks.
+
+    Parametrised across sizes because whether a given chunk size lands mid-codepoint
+    depends on the byte content: at 5 bytes this body happens to survive by luck,
+    which is why the bug presents as intermittent garbling rather than a clean failure.
+
+    Sizes 1–3 are below the width of the widest codepoint here. They are included
+    deliberately: a fix that retreats to the last complete codepoint without also
+    guaranteeing forward progress returns an empty chunk at an unchanged offset, and
+    the GUI's poll loop spins on that offset forever. The `while` below would hang.
+    """
+    from app.gui_runs import run_manager
+
+    run_id, run_dir = make_run()
+    _write_log(run_dir, MULTIBYTE_LOG_BODY)
+    total = len(MULTIBYTE_LOG_BODY.encode("utf-8"))
+
+    out, offset = "", 0
+    for _ in range(total + 1):  # bounded, so a stalled offset fails instead of hanging
+        if offset >= total:
+            break
+        chunk, next_offset = run_manager.read_log_chunk(run_id, offset=offset, max_bytes=max_bytes)
+        assert next_offset > offset, (
+            f"offset stalled at {offset}/{total} with max_bytes={max_bytes}: "
+            f"the poll loop would never terminate"
+        )
+        out += chunk
+        offset = next_offset
+
+    assert offset == total, "the walk did not reach EOF"
+    assert out == MULTIBYTE_LOG_BODY, "a chunk boundary corrupted a multi-byte character"
+
+
+def test_a_chunk_boundary_never_yields_a_replacement_character(make_run) -> None:
+    """The corruption is silent: U+FFFD is a valid character, so the text still decodes.
+
+    Pinned separately from the round-trip above because it names the symptom a reader
+    would actually see in the log pane — `Düsseldorf` arriving as `D��sseldorf`
+    — and it fails on the first bad chunk rather than on the reassembled total.
+    """
+    from app.gui_runs import run_manager
+
+    run_id, run_dir = make_run()
+    _write_log(run_dir, MULTIBYTE_LOG_BODY)
+    total = len(MULTIBYTE_LOG_BODY.encode("utf-8"))
+
+    offset = 0
+    for _ in range(total + 1):
+        if offset >= total:
+            break
+        chunk, offset = run_manager.read_log_chunk(run_id, offset=offset, max_bytes=3)
+        assert "�" not in chunk, (
+            "read_log_chunk split a codepoint and substituted U+FFFD; "
+            "the bytes are not recoverable by the next poll"
+        )
+
+
+def test_a_truncated_tail_at_eof_is_still_delivered(make_run) -> None:
+    """Backing off a partial codepoint must not strand the end of the file.
+
+    At EOF there is no "next poll" to complete the sequence, so a genuinely truncated
+    tail — a run killed mid-write — has to come back as U+FFFD rather than be withheld
+    forever. Without this, `finished` never goes true and the GUI polls indefinitely.
+    """
+    from app.gui_runs import run_manager
+
+    run_id, run_dir = make_run()
+    log = run_dir / "run.log"
+    log.write_bytes(b"ok\n" + "ü".encode()[:1])  # lead byte, no continuation
+
+    chunk, offset = run_manager.read_log_chunk(run_id, offset=0)
+
+    assert offset == 4, "the offset must reach EOF even though the tail is incomplete"
+    assert chunk == "ok\n�"
 
 
 # --------------------------------------------------------------------------- #

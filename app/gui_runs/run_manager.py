@@ -139,10 +139,54 @@ def write_latest(user_id: str, profile_key: str, data: Dict[str, Any]) -> None:
     atomic_write_json(path, data)
 
 
+def _utf8_sequence_length(lead: int) -> int:
+    """Total byte width of the UTF-8 sequence starting with `lead`.
+
+    Returns 1 for a byte that cannot start a sequence (a stray continuation byte), so
+    a malformed log still advances one byte per call instead of stalling.
+    """
+    if lead < 0x80:
+        return 1
+    if lead >= 0xF0:
+        return 4
+    if lead >= 0xE0:
+        return 3
+    if lead >= 0xC0:
+        return 2
+    return 1
+
+
+def _last_sequence_start(data: bytes) -> int | None:
+    """Index where the final UTF-8 sequence in `data` begins, or None if undecidable.
+
+    Only the last four bytes are examined: no valid sequence is longer, so a run of
+    continuation bytes beyond that is malformed rather than merely incomplete.
+    """
+    for i in range(len(data) - 1, max(-1, len(data) - 5), -1):
+        if (data[i] & 0xC0) != 0x80:  # not a continuation byte
+            return i
+    return None
+
+
 def read_log_chunk(run_id: str, offset: int, max_bytes: int = 4096) -> tuple[str, int]:
     """
     Read up to `max_bytes` BYTES from run.log starting at byte `offset`.
     Returns (chunk_text, new_offset_bytes).
+
+    `next_offset` is always a UTF-8 codepoint boundary. A chunk that would end in the
+    middle of a multi-byte character is shortened to the last complete one and the
+    remainder is delivered by the following poll, so a caller that walks the file with
+    the returned offsets reassembles it exactly, whatever chunk size it asks for.
+
+    Two cases deliberately do not shorten:
+
+    - **At EOF.** A truncated tail is genuinely truncated -- there is no later poll to
+      complete it -- so it is decoded with U+FFFD and the offset reaches the end.
+      Withholding it instead would leave `finished` false and the GUI polling forever.
+    - **When the sequence is wider than `max_bytes`.** Shortening would return an empty
+      chunk without advancing the offset, and the caller would poll that same offset
+      forever. The read is extended to complete the character instead. This is the only
+      case where a chunk exceeds `max_bytes`, and never by more than 3 bytes.
     """
     lp = log_path(run_id)
     if not lp.exists():
@@ -162,6 +206,18 @@ def read_log_chunk(run_id: str, offset: int, max_bytes: int = 4096) -> tuple[str
     with lp.open("rb") as f:
         f.seek(offset)
         data = f.read(read_upto - offset)
+
+        if read_upto < size:  # more bytes follow; at EOF `replace` is correct
+            start = _last_sequence_start(data)
+            if start is not None and start + _utf8_sequence_length(data[start]) > len(data):
+                if start > 0:
+                    data = data[:start]  # hand the partial character to the next poll
+                else:
+                    # The whole chunk is one incomplete character. Trimming would
+                    # return "" at an unchanged offset and the caller would spin.
+                    needed = start + _utf8_sequence_length(data[start]) - len(data)
+                    data += f.read(min(needed, size - read_upto))
+                read_upto = offset + len(data)
 
     chunk = data.decode("utf-8", errors="replace")
     return chunk, read_upto
