@@ -1,0 +1,59 @@
+# Local gate: fails in ~1s instead of ~2min in CI.
+#
+#   pre-commit install          (or: make install-hooks)
+#
+# Deliberately fast-only. The full ratchet (pytest + pyright + import-linter) stays
+# in CI -- a multi-second pre-commit hook gets bypassed with --no-verify within a
+# week, and a bypassed hook is worse than no hook.
+#
+# ---------------------------------------------------------------------------
+# EVERY HOOK HERE REPORTS. NONE OF THEM MUTATE.
+#
+# An auto-fixing hook rewrites files inside a brief's allowlist with no review, and
+# `scripts/slice_report.sh` cannot catch it -- the edit lands before the diff is ever
+# computed, so it reads as intended work. That already happened once: the `--fix`
+# ruff hook plus `end-of-file-fixer` rewrote 55 files in one pass and pulled the
+# pyupgrade work that refactor-plan.md reserves for Slice 2 into an unrelated bugfix.
+#
+# When a hook fails, fix it yourself and re-stage:
+#     ruff check . --fix && ruff format .      (or: make fmt)
+#
+# Do not add `--fix`, and do not add hooks that write. See AGENTS.md.
+# ---------------------------------------------------------------------------
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1 # matches the pinned ruff in requirements.lock.txt
+    hooks:
+      # tests/legacy/ is quarantined with its ORIGINAL content on purpose
+      # (TEST-STRATEGY section 7: do not repair it, delete it as the new suite covers
+      # its ground). Its pre-existing findings belong to the Slice 2 mass pyupgrade
+      # pass. Excluded from the hook only -- `ruff check .` still counts them, so
+      # ci/baseline.json stays honest at 747.
+      - id: ruff-check # report only -- no --fix. (`ruff` is a legacy alias for this.)
+        exclude: ^tests/legacy/
+      - id: ruff-format
+        args: [--check]
+        exclude: ^tests/legacy/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # All validators. `trailing-whitespace` and `end-of-file-fixer` are
+      # deliberately absent: neither has a check-only mode, and they were the hooks
+      # that rewrote tracked files (including app/.idea/*) during the incident above.
+      # `ruff-format --check` already covers both concerns for Python.
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      # The repo has a history of near-misses here: .env, .env.dev, jar.txt and
+      # cookies*.txt all live in the working tree and are gitignored by hand.
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
