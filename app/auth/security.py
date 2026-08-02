@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import jwt
@@ -23,7 +23,7 @@ def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> st
     if not settings.jwt_secret:
         raise RuntimeError("JOBAGENT_JWT_SECRET is not set")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     exp = now + timedelta(minutes=int(settings.jwt_expires_min))
 
     payload: dict[str, Any] = {

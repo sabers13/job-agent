@@ -1,5 +1,6 @@
 from sqlalchemy.exc import DBAPIError, OperationalError
-from app.db.session import SessionLocal, ping_db, is_transient_db_error
+
+from app.db.session import SessionLocal, is_transient_db_error, ping_db
 
 
 def check_db() -> dict:

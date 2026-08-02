@@ -1,13 +1,16 @@
 from __future__ import annotations
-import json, re
+
+import json
 import os
+import re
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, Tuple
+from typing import Any
+
+from loguru import logger
 from openai import OpenAI
 
 from app.config.focus import DEFAULT_FOCUS
 from app.config.settings import settings
-from loguru import logger
 
 _CLIENT = None
 
@@ -22,10 +25,10 @@ def _client():
 @dataclass
 class EnrichmentMeta:
     ok: bool
-    model: Optional[str] = None
-    error_type: Optional[str] = None
-    error_message: Optional[str] = None
-    raw_excerpt: Optional[str] = None
+    model: str | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+    raw_excerpt: str | None = None
 
 
 def _build_system_prompt(focus=DEFAULT_FOCUS) -> str:
@@ -80,12 +83,12 @@ def _safe_jsonable(obj):
     return obj
 
 
-def _load_resume_snapshot() -> Optional[Dict[str, Any]]:
+def _load_resume_snapshot() -> dict[str, Any] | None:
     path = os.getenv("JOBAGENT_RESUME_SNAPSHOT")
     if not path:
         return None
     try:
-        with open(path, "r", encoding="utf-8") as handle:
+        with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
     except Exception:
         return None
@@ -99,7 +102,7 @@ def _load_resume_snapshot() -> Optional[Dict[str, Any]]:
     }
 
 
-def _build_user_prompt(job: Dict[str, Any], focus=DEFAULT_FOCUS) -> str:
+def _build_user_prompt(job: dict[str, Any], focus=DEFAULT_FOCUS) -> str:
     title = job.get("title") or "Unknown"
     company = job.get("company") or "Unknown"
     location = job.get("location") or "Unknown"
@@ -136,8 +139,8 @@ Job DESCRIPTION (text):
 
 
 def enrich_jobposting(
-    job: Dict[str, Any], focus=DEFAULT_FOCUS
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    job: dict[str, Any], focus=DEFAULT_FOCUS
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Calls OpenAI to enrich fields. Returns (merged dict, enrichment_meta).
     Enrichment failures do not raise; metadata captures the failure.
@@ -208,8 +211,8 @@ LLM_SCORING_VERSION = "1.0.0"
 
 
 def llm_score_job(
-    job: Dict[str, Any], focus: Any, heuristic_result: Dict[str, Any]
-) -> Dict[str, Any]:
+    job: dict[str, Any], focus: Any, heuristic_result: dict[str, Any]
+) -> dict[str, Any]:
     """
     Ask an LLM to provide a holistic score and German requirement summary.
     Returns a dict with llm_score and related metadata.
@@ -255,7 +258,7 @@ def llm_score_job(
     )
 
     content: str = ""
-    raw_excerpt: Optional[str] = None
+    raw_excerpt: str | None = None
     try:
         temperature = 0.2
         if "gpt-5" in settings.openai_model_scoring:

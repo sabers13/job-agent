@@ -3,9 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, is_dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -18,14 +18,14 @@ STATE_FILE = STATE_DIR / "run_state.json"
 
 CACHE_DIR = settings.output_dir / "_cache"
 
-DEFAULT_STATE: Dict[str, Any] = {
+DEFAULT_STATE: dict[str, Any] = {
     "last_run": None,
     "run_dir": None,
     "last_seed": None,
 }
 
 
-def load_state() -> Dict[str, Any]:
+def load_state() -> dict[str, Any]:
     try:
         if not STATE_FILE.exists():
             return DEFAULT_STATE.copy()
@@ -39,7 +39,7 @@ def load_state() -> Dict[str, Any]:
         return DEFAULT_STATE.copy()
 
 
-def save_state(state: Dict[str, Any]) -> Dict[str, Any]:
+def save_state(state: dict[str, Any]) -> dict[str, Any]:
     ensure_dir(STATE_DIR)
     persisted = DEFAULT_STATE.copy()
     if isinstance(state, dict):
@@ -51,7 +51,7 @@ def save_state(state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _stable_json(obj: Any) -> str:
@@ -61,7 +61,7 @@ def _stable_json(obj: Any) -> str:
     if is_dataclass(obj):
         obj = asdict(obj)
     if isinstance(obj, dict):
-        norm: Dict[str, Any] = {}
+        norm: dict[str, Any] = {}
         for k, v in obj.items():
             if isinstance(v, set):
                 norm[k] = sorted(list(v))
@@ -75,14 +75,14 @@ def _stable_json(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, ensure_ascii=False)
 
 
-def _focus_fingerprint(focus: Optional[FocusConfig]) -> Optional[str]:
+def _focus_fingerprint(focus: FocusConfig | None) -> str | None:
     if not focus:
         return None
     raw = _stable_json(focus)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
-def _cache_key(url: str, focus: Optional[FocusConfig]) -> str:
+def _cache_key(url: str, focus: FocusConfig | None) -> str:
     parts = [url.strip(), f"cv:{settings.cache_version}"]
     if focus and settings.cache_per_profile:
         parts.append(f"profile:{focus.profile_name}")
@@ -91,12 +91,12 @@ def _cache_key(url: str, focus: Optional[FocusConfig]) -> str:
     return hashlib.sha1(base.encode("utf-8")).hexdigest()
 
 
-def _cache_path(url: str, focus: Optional[FocusConfig]) -> Path:
+def _cache_path(url: str, focus: FocusConfig | None) -> Path:
     ensure_dir(CACHE_DIR)
     return CACHE_DIR / f"{_cache_key(url, focus)}.json"
 
 
-def cache_get(url: str, focus: Optional[FocusConfig] = None) -> Optional[Dict[str, Any]]:
+def cache_get(url: str, focus: FocusConfig | None = None) -> dict[str, Any] | None:
     if not settings.cache_enabled:
         return None
     p = _cache_path(url, focus)
@@ -115,7 +115,7 @@ def cache_get(url: str, focus: Optional[FocusConfig] = None) -> Optional[Dict[st
         if cached_at and settings.cache_ttl_days > 0:
             try:
                 dt = datetime.fromisoformat(str(cached_at).replace("Z", "+00:00"))
-                if datetime.now(timezone.utc) - dt > timedelta(days=settings.cache_ttl_days):
+                if datetime.now(UTC) - dt > timedelta(days=settings.cache_ttl_days):
                     return None
             except Exception:
                 return None
@@ -134,7 +134,7 @@ def cache_get(url: str, focus: Optional[FocusConfig] = None) -> Optional[Dict[st
         return None
 
 
-def cache_put(url: str, payload: Dict[str, Any], focus: Optional[FocusConfig] = None) -> None:
+def cache_put(url: str, payload: dict[str, Any], focus: FocusConfig | None = None) -> None:
     if not settings.cache_enabled:
         return
     try:

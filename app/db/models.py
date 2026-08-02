@@ -27,11 +27,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
-    profiles: Mapped[list["Profile"]] = relationship(
+    profiles: Mapped[list[Profile]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    runs: Mapped[list["Run"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    resumes: Mapped[list["Resume"]] = relationship(
+    runs: Mapped[list[Run]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    resumes: Mapped[list[Resume]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -59,7 +59,7 @@ class Resume(Base):
         nullable=False,
     )
 
-    user: Mapped["User"] = relationship(back_populates="resumes")
+    user: Mapped[User] = relationship(back_populates="resumes")
 
     __table_args__ = (
         Index("ix_resumes_user_sha256", "user_id", "sha256"),
@@ -80,9 +80,9 @@ class Profile(Base):
     focus_config_json: Mapped[str] = mapped_column(UnicodeText(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
-    user: Mapped["User"] = relationship(back_populates="profiles")
-    runs: Mapped[list["Run"]] = relationship(back_populates="profile", cascade="all, delete-orphan")
-    url_pool: Mapped[list["UrlPoolEntry"]] = relationship(
+    user: Mapped[User] = relationship(back_populates="profiles")
+    runs: Mapped[list[Run]] = relationship(back_populates="profile", cascade="all, delete-orphan")
+    url_pool: Mapped[list[UrlPoolEntry]] = relationship(
         back_populates="profile", cascade="all, delete-orphan"
     )
 
@@ -114,11 +114,9 @@ class Run(Base):
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
-    user: Mapped["User"] = relationship(back_populates="runs")
-    profile: Mapped["Profile"] = relationship(back_populates="runs")
-    items: Mapped[list["RunItem"]] = relationship(
-        back_populates="run", cascade="all, delete-orphan"
-    )
+    user: Mapped[User] = relationship(back_populates="runs")
+    profile: Mapped[Profile] = relationship(back_populates="runs")
+    items: Mapped[list[RunItem]] = relationship(back_populates="run", cascade="all, delete-orphan")
 
 
 class RunItem(Base):
@@ -143,7 +141,7 @@ class RunItem(Base):
 
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
-    run: Mapped["Run"] = relationship(back_populates="items")
+    run: Mapped[Run] = relationship(back_populates="items")
 
     __table_args__ = (
         UniqueConstraint("run_id", "url_hash", name="uq_run_items_run_urlhash"),
@@ -169,7 +167,7 @@ class UrlPoolEntry(Base):
     first_seen_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=utcnow, nullable=False)
 
-    profile: Mapped["Profile"] = relationship(back_populates="url_pool")
+    profile: Mapped[Profile] = relationship(back_populates="url_pool")
 
     __table_args__ = (
         UniqueConstraint("profile_id", "url_hash", name="uq_url_pool_profile_urlhash"),

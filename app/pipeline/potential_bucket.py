@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any
 
 #: The score at or above which a job is *accepted*. A product decision, not a tuning
 #: artefact — which is why it is the one absolute `tests/unit/test_scoring_invariants.py`
@@ -22,12 +23,12 @@ ACCEPT_THRESHOLD = 70
 @dataclass(frozen=True)
 class PotentialDecision:
     is_potential: bool
-    final_score: Optional[float]
-    llm_score: Optional[float]
+    final_score: float | None
+    llm_score: float | None
     reason: str
 
 
-def _as_float(x: Any) -> Optional[float]:
+def _as_float(x: Any) -> float | None:
     if x is None:
         return None
     try:

@@ -9,7 +9,7 @@ from app.auth.deps import get_current_user
 from app.auth.security import create_access_token, hash_password, verify_password
 from app.config.settings import settings
 from app.db.crud_profiles import seed_default_profiles_for_user
-from app.db.crud_users import create_user, get_user_by_email, get_user_by_id
+from app.db.crud_users import create_user, get_user_by_email
 from app.db.models import User
 from app.db.session import db_session, is_transient_db_error, run_db_with_retries
 

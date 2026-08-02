@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, List, Literal, Tuple
+from typing import Any, Literal
 
 
 def main() -> None:
@@ -47,7 +47,7 @@ def main() -> None:
 SourceType = Literal["analysis", "process_result"]
 
 
-def _load_entries(path: Path) -> Tuple[List[dict[str, Any]], SourceType]:
+def _load_entries(path: Path) -> tuple[list[dict[str, Any]], SourceType]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, list):
         return [entry for entry in data if isinstance(entry, dict)], "analysis"

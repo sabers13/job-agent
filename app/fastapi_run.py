@@ -1,92 +1,95 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
 import uuid
-import logging
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, Literal
 from urllib.parse import quote
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Literal
 
 from dotenv import load_dotenv
 from fastapi import (
     BackgroundTasks,
     Depends,
     FastAPI,
+    File,
+    Form,
     HTTPException,
     Query,
     Request,
     Response,
-    status,
     UploadFile,
-    File,
-    Form,
+    status,
 )
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger as _logger
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import DBAPIError, OperationalError
 
-from app.config.settings import settings
-from app.config import profile_store
-from app.config.focus import DEFAULT_FOCUS, FocusConfig, get_focus_config
-from app.gui_runs import run_manager
+from app.api.auth_routes import router as auth_router
+from app.api.schemas import (
+    AggregateReportRequest,
+    AggregateReportResponse,
+    BundleRequest,
+    BundleResponse,
+    JobDetailsRequest,
+    JobDetailsResponse,
+    ResumeDetailResponse,
+    ResumeListItem,
+    ResumeUploadResponse,
+    RunSingleRequest,
+    RunSingleResponse,
+    ScoringResult,
+    SearchStepstoneListRequest,
+    SearchStepstoneListResponse,
+    UnifiedJobPostingOut,
+)
+from app.api.schemas import (
+    FetchMeta as FetchMetaSchema,
+)
 from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.deps import get_current_user
+from app.common.logging_ctx import get_run_ctx, run_ctx_scope
+from app.common.utils import ensure_dir, safe_filename, sha256_bytes
+from app.config import profile_store
+from app.config.focus import DEFAULT_FOCUS, FocusConfig, get_focus_config
+from app.config.settings import settings
 from app.db.crud_profiles import (
-    create_profile_for_user,
     delete_profile_for_user,
-    get_profile_for_user,
     get_focus_profile_model_for_user,
+    get_profile_for_user,
     list_profiles_for_user,
-    update_profile_for_user,
     upsert_profile_for_user,
 )
 from app.db.health import check_db
-from app.db.session import SessionLocal, db_session, is_transient_db_error, ping_db
 from app.db.models import Resume
-from app.api.schemas import (
-    AggregateReportRequest,
-    BundleRequest,
-    JobDetailsRequest,
-    RunSingleRequest,
-    RunSingleResponse,
-    SearchStepstoneListResponse,
-    SearchStepstoneListRequest,
-    JobDetailsResponse,
-    BundleResponse,
-    AggregateReportResponse,
-    FetchMeta as FetchMetaSchema,
-    ScoringResult,
-    UnifiedJobPostingOut,
-    ResumeUploadResponse,
-    ResumeListItem,
-    ResumeDetailResponse,
+from app.db.session import db_session, is_transient_db_error
+from app.gui_runs import run_manager
+
+from .fetching.polite_fetch import (
+    AccessDeniedError as FetchAccessDeniedError,
 )
-from app.api.auth_routes import router as auth_router
-from .pipeline.templating import generate_bundle
+from .fetching.polite_fetch import (
+    FetchError,
+    RobotsDisallowedError,
+)
+from .pipeline.models import FocusProfileModel
 from .pipeline.output import write_bundle, write_summary
-from .pipeline.models import UnifiedJobPosting, FocusProfileModel
+from .pipeline.pipeline import fetch_job_details as pipeline_fetch_job_details
 from .pipeline.resume_parse import parse_resume_file
-from app.common.utils import ensure_dir, safe_filename, sha256_bytes
-from app.common.logging_ctx import get_run_ctx, run_ctx_scope
+from .pipeline.state import load_state, save_state
+from .pipeline.templating import generate_bundle
 from .pipeline.url_pool_maintenance import prune_unavailable_stepstone_urls
+from .stepstone.dates import parse_iso8601_utc
 from .stepstone.search_http import search_stepstone as crawl_http
 from .stepstone.search_playwright import search_stepstone_pw as crawl_pw
 from .stepstone.smoke import search_stepstone as ss_search
-from .pipeline.state import load_state, save_state
-from .fetching.polite_fetch import (
-    RobotsDisallowedError,
-    AccessDeniedError as FetchAccessDeniedError,
-    FetchError,
-)
-from .pipeline.pipeline import fetch_job_details as pipeline_fetch_job_details
-from .stepstone.dates import parse_iso8601_utc
 
 
 def _loguru_patcher(record):
@@ -169,10 +172,10 @@ class Health(BaseModel):
     ok: bool
     use_playwright: bool
     headless: bool
-    message: Optional[str] = None
-    config_ok: Optional[bool] = None
-    db_ok: Optional[bool] = None
-    output_ok: Optional[bool] = None
+    message: str | None = None
+    config_ok: bool | None = None
+    db_ok: bool | None = None
+    output_ok: bool | None = None
 
 
 @app.get("/health", response_model=Health)
@@ -237,7 +240,8 @@ async def playwright_check():
             await page.goto("https://httpbin.org/user-agent", wait_until="domcontentloaded")
             data = await page.content()
             await browser.close()
-        import re, html
+        import html
+        import re
 
         text = html.unescape(data)
         m = re.search(r"\"user-agent\"\\s*:\\s*\"([^\"]+)\"", text)
@@ -336,9 +340,9 @@ def _augment_with_potential_applications(status: dict) -> dict:
 
 
 class _TemporaryEnv:
-    def __init__(self, updates: Dict[str, str]) -> None:
+    def __init__(self, updates: dict[str, str]) -> None:
         self._updates = updates
-        self._previous: Dict[str, str | None] = {}
+        self._previous: dict[str, str | None] = {}
 
     def __enter__(self):
         for key, value in self._updates.items():
@@ -353,14 +357,14 @@ class _TemporaryEnv:
                 os.environ[key] = prior
 
 
-def _filter_listings_by_cutoff(result: Dict[str, Any], cutoff_iso: Optional[str]) -> Dict[str, Any]:
+def _filter_listings_by_cutoff(result: dict[str, Any], cutoff_iso: str | None) -> dict[str, Any]:
     dt = parse_iso8601_utc(cutoff_iso)
     if not dt:
         return result
     jobs = result.get("jobs") or []
     if not jobs:
         return result
-    filtered: List[Dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
     for job in jobs:
         posted_iso = job.get("posted_iso")
         posted_dt = parse_iso8601_utc(posted_iso)
@@ -383,10 +387,10 @@ def _filter_listings_by_cutoff(result: Dict[str, Any], cutoff_iso: Optional[str]
 
 @app.get("/search_stepstone")
 async def search_stepstone(
-    url: Optional[str] = Query(
+    url: str | None = Query(
         default=None, description="URL to visit; default StepStone EN homepage"
     ),
-    backend: Optional[str] = Query(default=None, description="Override backend: 'pw' or 'http'"),
+    backend: str | None = Query(default=None, description="Override backend: 'pw' or 'http'"),
 ):
     try:
         query = {"url": url} if url else {}
@@ -569,12 +573,12 @@ async def aggregate_report(req: AggregateReportRequest) -> AggregateReportRespon
 class ProfileListItem(BaseModel):
     key: str
     profile_name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class BatchSearchConfig(BaseModel):
     max_age_days: int = 4
-    cutoff_iso: Optional[str] = None
+    cutoff_iso: str | None = None
 
 
 class StartBatchRunRequest(BaseModel):
@@ -583,25 +587,25 @@ class StartBatchRunRequest(BaseModel):
     use_llm_enrich: bool = True
     use_llm_scoring: bool = True
     apply_blocker_cap: bool = True
-    seed_urls: Optional[List[str]] = None
+    seed_urls: list[str] | None = None
     orchestrator: Literal["prefect_subprocess", "prefect_inprocess"] = "prefect_subprocess"
 
 
 class BatchRunStatus(BaseModel):
     run_id: str
     status: str
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
-    profile_key: Optional[str] = None
-    params: Dict[str, Any] = {}
-    user_id: Optional[str] = None
-    stage: Optional[str] = None
-    output_root: Optional[str] = None
-    artifacts: Dict[str, Optional[str]] = Field(default_factory=dict)
-    return_codes: Dict[str, int] = Field(default_factory=dict)
-    metrics: Dict[str, Any] = Field(default_factory=dict)
-    summary_path: Optional[str] = None
-    error: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    profile_key: str | None = None
+    params: dict[str, Any] = {}
+    user_id: str | None = None
+    stage: str | None = None
+    output_root: str | None = None
+    artifacts: dict[str, str | None] = Field(default_factory=dict)
+    return_codes: dict[str, int] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    summary_path: str | None = None
+    error: str | None = None
 
 
 class RunLogsResponse(BaseModel):
@@ -615,8 +619,8 @@ class RunLogsResponse(BaseModel):
 class RunSummaryResponse(BaseModel):
     ok: bool
     run_id: str
-    summary_md: Optional[str] = None
-    analysis_summary: Optional[Any] = None
+    summary_md: str | None = None
+    analysis_summary: Any | None = None
 
 
 class MeResponse(BaseModel):
@@ -626,27 +630,27 @@ class MeResponse(BaseModel):
 
 class PotentialApplicationListItem(BaseModel):
     job_key: str
-    final_score: Optional[float] = None
-    llm_score: Optional[float] = None
-    reason: Optional[str] = None
-    title: Optional[str] = None
-    company: Optional[str] = None
-    location: Optional[str] = None
-    url: Optional[str] = None
+    final_score: float | None = None
+    llm_score: float | None = None
+    reason: str | None = None
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    url: str | None = None
 
 
 class PotentialApplicationsResponse(BaseModel):
     run_id: str
     count: int
-    items: List[PotentialApplicationListItem]
+    items: list[PotentialApplicationListItem]
 
 
 class PotentialApplicationDetailResponse(BaseModel):
     run_id: str
     job_key: str
-    job_json: Optional[Dict[str, Any]] = None
-    metadata_json: Optional[Dict[str, Any]] = None
-    reason_json: Optional[Dict[str, Any]] = None
+    job_json: dict[str, Any] | None = None
+    metadata_json: dict[str, Any] | None = None
+    reason_json: dict[str, Any] | None = None
 
 
 class PruneUrlPoolRequest(BaseModel):
@@ -667,18 +671,18 @@ class MaintenanceRunResponse(BaseModel):
 
 class MyProfileCreate(BaseModel):
     profile_key: str
-    profile_name: Optional[str] = None
-    description: Optional[str] = None
-    focus_config_json: Dict[str, Any] | str = Field(default_factory=dict)
+    profile_name: str | None = None
+    description: str | None = None
+    focus_config_json: dict[str, Any] | str = Field(default_factory=dict)
 
 
 class MyProfileUpdate(BaseModel):
-    profile_name: Optional[str] = None
-    description: Optional[str] = None
-    focus_config_json: Dict[str, Any] | str = Field(default_factory=dict)
+    profile_name: str | None = None
+    description: str | None = None
+    focus_config_json: dict[str, Any] | str = Field(default_factory=dict)
 
 
-def _profile_payload_from_db(prof) -> Dict[str, Any]:
+def _profile_payload_from_db(prof) -> dict[str, Any]:
     try:
         payload = json.loads(prof.focus_config_json or "{}")
     except Exception:
@@ -934,7 +938,7 @@ async def upload_resume(
 
 
 @app.get(
-    "/api/my/resumes", response_model=List[ResumeListItem], dependencies=[Depends(get_current_user)]
+    "/api/my/resumes", response_model=list[ResumeListItem], dependencies=[Depends(get_current_user)]
 )
 def list_resumes(user=Depends(get_current_user)):
     with db_session() as db:
@@ -1122,7 +1126,7 @@ def gui_profiles(request: Request):
 
 
 def _compute_cutoff_iso(max_age_days: int) -> str:
-    dt = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    dt = datetime.now(UTC) - timedelta(days=max_age_days)
     return dt.isoformat().replace("+00:00", "Z")
 
 
@@ -1131,11 +1135,11 @@ def _slugify(text: str) -> str:
     return slug or "seed"
 
 
-def _build_seeds_from_focus(focus) -> Optional[List[Dict[str, Any]]]:
+def _build_seeds_from_focus(focus) -> list[dict[str, Any]] | None:
     seeds = getattr(focus, "search_seeds", None) or []
     if not seeds:
         return None
-    payload: List[Dict[str, Any]] = []
+    payload: list[dict[str, Any]] = []
     for idx, raw in enumerate(seeds):
         if not raw:
             continue
@@ -1160,8 +1164,8 @@ def _build_seeds_from_focus(focus) -> Optional[List[Dict[str, Any]]]:
     return payload or None
 
 
-def _build_seeds_from_urls(seed_urls: List[str]) -> List[Dict[str, Any]]:
-    payload: List[Dict[str, Any]] = []
+def _build_seeds_from_urls(seed_urls: list[str]) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
     for idx, raw in enumerate(seed_urls):
         if not raw:
             continue
@@ -1900,7 +1904,7 @@ def _safe_job_key(job_key: str) -> str:
     return job_key
 
 
-def _read_json_file(path: Path) -> Optional[Dict[str, Any]]:
+def _read_json_file(path: Path) -> dict[str, Any] | None:
     try:
         if not path.exists():
             return None
@@ -1910,7 +1914,7 @@ def _read_json_file(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _pick_first_json(paths: List[Path]) -> Optional[Dict[str, Any]]:
+def _pick_first_json(paths: list[Path]) -> dict[str, Any] | None:
     for path in paths:
         obj = _read_json_file(path)
         if isinstance(obj, dict):
@@ -1918,7 +1922,7 @@ def _pick_first_json(paths: List[Path]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _coerce_float(v: Any) -> Optional[float]:
+def _coerce_float(v: Any) -> float | None:
     try:
         if v is None:
             return None
@@ -1928,9 +1932,9 @@ def _coerce_float(v: Any) -> Optional[float]:
 
 
 def _extract_best_effort_fields(
-    job: Optional[Dict[str, Any]],
-    meta: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    job: dict[str, Any] | None,
+    meta: dict[str, Any] | None,
+) -> dict[str, Any]:
     job = job or {}
     meta = meta or {}
     title = job.get("title") or job.get("job_title") or meta.get("title") or meta.get("job_title")
@@ -1965,7 +1969,7 @@ def list_potential_applications(
     if not pot_dir.exists() or not pot_dir.is_dir():
         return PotentialApplicationsResponse(run_id=run_id, count=0, items=[])
 
-    items: List[PotentialApplicationListItem] = []
+    items: list[PotentialApplicationListItem] = []
     for child in sorted([p for p in pot_dir.iterdir() if p.is_dir()], key=lambda p: p.name):
         if len(items) >= int(limit):
             break
@@ -2079,8 +2083,8 @@ def gui_logout():
 
 
 class RunState(BaseModel):
-    last_run: Optional[str] = None
-    run_dir: Optional[str] = None
+    last_run: str | None = None
+    run_dir: str | None = None
 
 
 @app.get("/run_state", response_model=RunState)

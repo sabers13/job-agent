@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Set, Optional, TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from app.config import profile_store
 
@@ -15,13 +15,13 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class FocusConfig:
     profile_name: str = "junior_data_bi"
-    description: Optional[str] = None
-    search_seeds: List[str] = field(default_factory=list)
-    target_seniority: Optional[str] = "junior"
-    max_allowed_seniority: Optional[str] = "mid"
-    max_required_experience_years: Optional[int] = 3
+    description: str | None = None
+    search_seeds: list[str] = field(default_factory=list)
+    target_seniority: str | None = "junior"
+    max_allowed_seniority: str | None = "mid"
+    max_required_experience_years: int | None = 3
     experience_penalty_strength: float = 1.0
-    titles_any: Set[str] = field(
+    titles_any: set[str] = field(
         default_factory=lambda: {
             "Junior Data Analyst",
             "Junior BI Analyst",
@@ -32,18 +32,18 @@ class FocusConfig:
             "Data/BI Intern",
         }
     )
-    exclude_titles_any: Set[str] = field(
+    exclude_titles_any: set[str] = field(
         default_factory=lambda: {"Senior", "Lead", "Principal", "Head", "Manager"}
     )
-    locations_any: Set[str] = field(
+    locations_any: set[str] = field(
         default_factory=lambda: {"Deutschland", "NRW", "Dortmund", "Cologne", "Düsseldorf", "Essen"}
     )
-    include_skills_any: Set[str] = field(default_factory=lambda: {"Python", "SQL"})
-    nice_to_have: Set[str] = field(
+    include_skills_any: set[str] = field(default_factory=lambda: {"Python", "SQL"})
+    nice_to_have: set[str] = field(
         default_factory=lambda: {"Power BI", "DAX", "Power Query", "Pandas", "NumPy"}
     )
-    excluded_locations: Set[str] = field(default_factory=set)
-    min_german_level: Optional[str] = "B1"
+    excluded_locations: set[str] = field(default_factory=set)
+    min_german_level: str | None = "B1"
     requires_student_status: bool = True
     # NEW (candidate constraints / cap policy)
     candidate_german_level: str = "Unknown"
@@ -53,7 +53,7 @@ class FocusConfig:
     blocker_cap_soft: int = 55
 
     @classmethod
-    def from_profile(cls, profile: "FocusProfileModel") -> "FocusConfig":
+    def from_profile(cls, profile: FocusProfileModel) -> FocusConfig:
         strength = profile.experience_penalty_strength
         try:
             strength = float(strength)
@@ -104,11 +104,11 @@ class FocusConfig:
 DEFAULT_FOCUS = FocusConfig()
 
 
-def load_focus_profiles() -> Dict[str, FocusConfig]:
+def load_focus_profiles() -> dict[str, FocusConfig]:
     from app.pipeline.models import FocusProfileModel
 
     raw = profile_store.load_profiles()
-    profiles: Dict[str, FocusConfig] = {}
+    profiles: dict[str, FocusConfig] = {}
     for key, payload in raw.items():
         try:
             profiles[key] = FocusConfig.from_profile(FocusProfileModel(**payload))

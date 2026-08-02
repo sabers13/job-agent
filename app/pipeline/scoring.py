@@ -1,19 +1,21 @@
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Any
 
 from app.config.focus import DEFAULT_FOCUS
 from app.config.settings import settings
-from .llm_enrich import llm_score_job, LLM_SCORING_VERSION
+
+from .llm_enrich import LLM_SCORING_VERSION, llm_score_job
 
 
 @dataclass
 class HeuristicComponentResult:
     name: str
     raw_score: float
-    reasons: List[str]
-    meta: Dict[str, Any]
+    reasons: list[str]
+    meta: dict[str, Any]
 
 
 @dataclass
@@ -21,7 +23,7 @@ class HeuristicWeights:
     base_score: float = 50.0
     max_bonus: float = 50.0
     max_malus: float = 50.0
-    components: Dict[str, float] = None
+    components: dict[str, float] = None
 
     def __post_init__(self):
         if self.components is None:
@@ -128,10 +130,10 @@ def _location_matches_focus(title: str, loc: str, focus) -> bool:
 
 
 def classify_blockers(
-    *, job: Dict[str, Any], focus, llm_part: Optional[Dict[str, Any]]
-) -> Dict[str, Any]:
-    hard: List[str] = []
-    soft: List[str] = []
+    *, job: dict[str, Any], focus, llm_part: dict[str, Any] | None
+) -> dict[str, Any]:
+    hard: list[str] = []
+    soft: list[str] = []
 
     title = job.get("title") or ""
     loc = job.get("location") or ""
@@ -181,8 +183,8 @@ def classify_blockers(
 
 
 def apply_blocker_caps(
-    *, score: float, focus, blockers: Dict[str, Any], enabled: bool
-) -> Dict[str, Any]:
+    *, score: float, focus, blockers: dict[str, Any], enabled: bool
+) -> dict[str, Any]:
     hard = blockers.get("hard") or []
     soft = blockers.get("soft") or []
 
@@ -222,7 +224,7 @@ def apply_blocker_caps(
     }
 
 
-def _contains_any(text: str, words: List[str]) -> List[str]:
+def _contains_any(text: str, words: list[str]) -> list[str]:
     hits = []
     low = text.lower()
     for w in words:
@@ -231,7 +233,7 @@ def _contains_any(text: str, words: List[str]) -> List[str]:
     return hits
 
 
-def _count_keywords(text: str, keywords: List[str]) -> Dict[str, int]:
+def _count_keywords(text: str, keywords: list[str]) -> dict[str, int]:
     low = text.lower()
     counts = {}
     for k in keywords:
@@ -273,7 +275,7 @@ def _guess_post_language(text_lower: str) -> str:
     return "Mixed"
 
 
-def _regex_guess_german(text_lower: str) -> Optional[Dict[str, Any]]:
+def _regex_guess_german(text_lower: str) -> dict[str, Any] | None:
     for pattern, level, conf in LANG_PATTERNS:
         m = re.search(pattern, text_lower)
         if m:
@@ -303,9 +305,9 @@ def _regex_guess_german(text_lower: str) -> Optional[Dict[str, Any]]:
 
 
 def _fallback_language_items(
-    text_lower: str, english_hint: bool, english_evidence: Optional[str]
-) -> List[Dict[str, Any]]:
-    items: List[Dict[str, Any]] = []
+    text_lower: str, english_hint: bool, english_evidence: str | None
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
     german_guess = _regex_guess_german(text_lower)
     if german_guess:
         items.append(german_guess)
@@ -326,12 +328,12 @@ def _fallback_language_items(
 def resolve_language_items(
     *,
     text_lower: str,
-    job: Dict[str, Any],
-    lang_items: Optional[List[Dict[str, Any]]],
+    job: dict[str, Any],
+    lang_items: list[dict[str, Any]] | None,
     english_hint: bool,
-    llm_part: Optional[Dict[str, Any]],
+    llm_part: dict[str, Any] | None,
     focus,
-) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     Returns (normalized_lang_items, evidence_dict).
 
@@ -450,14 +452,14 @@ def resolve_language_items(
 
 
 def _penalize_language(
-    lang_items: List[Dict[str, Any]], english_hint: Optional[bool]
-) -> Dict[str, Any]:
+    lang_items: list[dict[str, Any]], english_hint: bool | None
+) -> dict[str, Any]:
     english_detected = bool(english_hint)
     english_bonus = 0
     german_penalty = 0
-    reasons: List[str] = []
-    german_entry: Optional[Dict[str, Any]] = None
-    english_entry: Optional[Dict[str, Any]] = None
+    reasons: list[str] = []
+    german_entry: dict[str, Any] | None = None
+    english_entry: dict[str, Any] | None = None
 
     for item in lang_items:
         if not isinstance(item, dict):
@@ -521,9 +523,9 @@ def _penalize_language(
     }
 
 
-def _vagueness_context_nudge(text_lower: str, english_detected: bool) -> Tuple[int, str]:
+def _vagueness_context_nudge(text_lower: str, english_detected: bool) -> tuple[int, str]:
     delta = 0
-    notes: List[str] = []
+    notes: list[str] = []
     if not english_detected:
         if GERMAN_HEAVY_CONTEXT.search(text_lower):
             delta -= 8
@@ -534,7 +536,7 @@ def _vagueness_context_nudge(text_lower: str, english_detected: bool) -> Tuple[i
     return delta, "; ".join(notes) if notes else ""
 
 
-def _experience_delta(text: str, focus) -> Tuple[int, str]:
+def _experience_delta(text: str, focus) -> tuple[int, str]:
     """
     Penalise roles that demand multiple years of experience. The slider in the
     profile controls how strict the penalty is:
@@ -590,7 +592,7 @@ def _experience_delta(text: str, focus) -> Tuple[int, str]:
     )
 
 
-def _seniority_delta(seniority: str | None) -> Tuple[int, str]:
+def _seniority_delta(seniority: str | None) -> tuple[int, str]:
     if not seniority:
         return (0, "seniority: unknown")
     s = seniority.strip().lower()
@@ -607,7 +609,7 @@ def _seniority_delta(seniority: str | None) -> Tuple[int, str]:
     return (0, f"seniority: {seniority}")
 
 
-def _employment_delta(emp: str | None) -> Tuple[int, str]:
+def _employment_delta(emp: str | None) -> tuple[int, str]:
     if not emp:
         return (0, "employment: unknown")
     e = emp.upper()
@@ -621,11 +623,11 @@ def _employment_delta(emp: str | None) -> Tuple[int, str]:
 
 
 def apply_seniority(
-    title: str, seniority: Optional[str], focus=DEFAULT_FOCUS
+    title: str, seniority: str | None, focus=DEFAULT_FOCUS
 ) -> HeuristicComponentResult:
-    reasons: List[str] = []
+    reasons: list[str] = []
     delta = 0
-    components: Dict[str, float] = {"seniority": 0}
+    components: dict[str, float] = {"seniority": 0}
 
     excl = _contains_any(title, list(focus.exclude_titles_any))
     if excl:
@@ -660,10 +662,10 @@ def apply_seniority(
 
 
 def apply_language(
-    text: str, lang_items: Optional[List[Dict[str, Any]]], english_hint: Optional[bool]
+    text: str, lang_items: list[dict[str, Any]] | None, english_hint: bool | None
 ) -> HeuristicComponentResult:
-    reasons: List[str] = []
-    components: Dict[str, float] = {"english_ok": 0, "german_requirement": 0}
+    reasons: list[str] = []
+    components: dict[str, float] = {"english_ok": 0, "german_requirement": 0}
     delta = 0
 
     lang_result = _penalize_language(lang_items or [], english_hint)
@@ -702,8 +704,8 @@ def apply_language(
 
 
 def apply_skills(text: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
-    reasons: List[str] = []
-    components: Dict[str, float] = {}
+    reasons: list[str] = []
+    components: dict[str, float] = {}
     delta = 0
 
     include_counts = _count_keywords(text, list(focus.include_skills_any))
@@ -742,8 +744,8 @@ def apply_skills(text: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
 
 
 def apply_location(title: str, loc: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
-    reasons: List[str] = []
-    components: Dict[str, float] = {}
+    reasons: list[str] = []
+    components: dict[str, float] = {}
     delta = 0
 
     loc_hits = _contains_any(f"{title} {loc}", list(focus.locations_any))
@@ -759,9 +761,9 @@ def apply_location(title: str, loc: str, focus=DEFAULT_FOCUS) -> HeuristicCompon
     )
 
 
-def apply_employment_type(employment: Optional[str]) -> HeuristicComponentResult:
-    reasons: List[str] = []
-    components: Dict[str, float] = {}
+def apply_employment_type(employment: str | None) -> HeuristicComponentResult:
+    reasons: list[str] = []
+    components: dict[str, float] = {}
     delta = 0
 
     emp_delta, emp_msg = _employment_delta(employment)
@@ -775,8 +777,8 @@ def apply_employment_type(employment: Optional[str]) -> HeuristicComponentResult
 
 
 def apply_experience(text: str, focus=DEFAULT_FOCUS) -> HeuristicComponentResult:
-    reasons: List[str] = []
-    components: Dict[str, float] = {}
+    reasons: list[str] = []
+    components: dict[str, float] = {}
     delta = 0
 
     exp_delta, exp_msg = _experience_delta(text, focus)
@@ -800,7 +802,7 @@ COMPONENT_FUNCS = [
 
 
 def aggregate_heuristic(
-    component_results: List[HeuristicComponentResult],
+    component_results: list[HeuristicComponentResult],
     weights: HeuristicWeights = DEFAULT_HEURISTIC_WEIGHTS,
 ) -> float:
     total = weights.base_score
@@ -851,11 +853,11 @@ def compute_alpha(
 
 
 def score_job(
-    job: Dict[str, Any],
+    job: dict[str, Any],
     focus=DEFAULT_FOCUS,
-    use_llm_scoring: Optional[bool] = None,
-    apply_blocker_cap: Optional[bool] = None,
-) -> Dict[str, Any]:
+    use_llm_scoring: bool | None = None,
+    apply_blocker_cap: bool | None = None,
+) -> dict[str, Any]:
     """
     Compute a 0–100 junior-fit score. Returns {score:int, reasons:[...], components:{...}}.
     Uses enrichment fields when present; otherwise falls back to keyword heuristics.
@@ -891,7 +893,7 @@ def score_job(
     )
     job["language_requirements"] = lang_items
 
-    component_results: List[HeuristicComponentResult] = []
+    component_results: list[HeuristicComponentResult] = []
     component_results.append(apply_seniority(title, job.get("seniority"), focus))
     component_results.append(apply_language(text_lower, lang_items, english_hint))
     component_results.append(apply_skills(text, focus))
@@ -899,10 +901,10 @@ def score_job(
     component_results.append(apply_employment_type(employment))
     component_results.append(apply_experience(text, focus))
 
-    def _summarize_components(comp_results: List[HeuristicComponentResult]):
-        reasons_local: List[str] = []
-        components_local: Dict[str, float] = {}
-        meta_local: Dict[str, Any] = {}
+    def _summarize_components(comp_results: list[HeuristicComponentResult]):
+        reasons_local: list[str] = []
+        components_local: dict[str, float] = {}
+        meta_local: dict[str, Any] = {}
         derived_english_local = False
         derived_german_local = None
         must_counts_local = {}

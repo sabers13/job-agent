@@ -8,8 +8,8 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.auth.constants import AUTH_COOKIE_NAME
 from app.auth.security import decode_token
-from app.db.session import is_transient_db_error, run_db_with_retries
 from app.db.crud_users import get_user_by_id
+from app.db.session import is_transient_db_error, run_db_with_retries
 
 bearer = HTTPBearer(auto_error=False)
 

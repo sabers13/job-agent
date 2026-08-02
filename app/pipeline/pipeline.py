@@ -1,32 +1,35 @@
 from __future__ import annotations
 
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 
+from app.config.focus import DEFAULT_FOCUS, FocusConfig
+from app.config.settings import settings
+
+from ..fetching.polite_fetch import (
+    AccessDeniedError as FetchAccessDeniedError,
+)
 from ..fetching.polite_fetch import (
     FetchError,
     RobotsDisallowedError,
-    AccessDeniedError as FetchAccessDeniedError,
     fetch_job_html,
 )
-from app.config.settings import settings
-from app.config.focus import FocusConfig, DEFAULT_FOCUS
-from .output import write_bundle
-from .state import cache_get, cache_put
 from .llm_enrich import enrich_jobposting
 from .models import UnifiedJobPosting
+from .output import write_bundle
 from .parsers import extract_jobposting_from_html
 from .scoring import score_job
+from .state import cache_get, cache_put
 from .templating import generate_bundle
 
-CachePayload = Dict[str, Any]
+CachePayload = dict[str, Any]
 
 
-def _parse_iso8601(ts: Optional[str]) -> Optional[datetime]:
+def _parse_iso8601(ts: str | None) -> datetime | None:
     if not ts:
         return None
     try:
@@ -41,15 +44,15 @@ def _parse_iso8601(ts: Optional[str]) -> Optional[datetime]:
 async def fetch_job_details(
     url: str,
     *,
-    backend: Optional[str] = None,
+    backend: str | None = None,
     enrich: bool = False,
     score: bool = False,
-    cutoff_iso: Optional[str] = None,
+    cutoff_iso: str | None = None,
     use_cache: bool = True,
-    focus: Optional[FocusConfig] = None,
-    use_llm_scoring: Optional[bool] = None,
-    apply_blocker_cap: Optional[bool] = None,
-) -> Dict[str, Any]:
+    focus: FocusConfig | None = None,
+    use_llm_scoring: bool | None = None,
+    apply_blocker_cap: bool | None = None,
+) -> dict[str, Any]:
     """
     Fetch a StepStone job posting, optionally enrich and score it, and compute
     whether it is stale compared to an ISO8601 cutoff timestamp.
@@ -116,7 +119,7 @@ async def fetch_job_details(
 
     enrichment_meta = None
     active_focus = focus or DEFAULT_FOCUS
-    final_job: Dict[str, Any] = core
+    final_job: dict[str, Any] = core
     if enrich:
         try:
             final_job, enrichment_meta = enrich_jobposting(core, focus=active_focus)
@@ -142,7 +145,7 @@ async def fetch_job_details(
     if scoring:
         final_job = {**final_job, "junior_fit_score": scoring["score"]}
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "ok": True,
         "backend": fetch_meta.get("backend") or backend,
         "job": final_job,
@@ -170,12 +173,12 @@ async def fetch_job_details(
 
 
 def write_job_bundle(
-    job: Dict[str, Any],
-    scoring: Optional[Dict[str, Any]] = None,
+    job: dict[str, Any],
+    scoring: dict[str, Any] | None = None,
     *,
-    seed_slug: Optional[str] = None,
-    enrichment_meta: Optional[Dict[str, Any]] = None,
-    category: Optional[str] = None,
+    seed_slug: str | None = None,
+    enrichment_meta: dict[str, Any] | None = None,
+    category: str | None = None,
 ) -> str:
     """
     Generate assets for a job posting and persist them to disk.

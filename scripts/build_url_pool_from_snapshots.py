@@ -4,16 +4,15 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def normalize_url(url: str) -> str:
@@ -39,12 +38,12 @@ def normalize_url(url: str) -> str:
     return urlunsplit(parts)
 
 
-def load_json(path: Path) -> Dict[str, Any]:
+def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def extract_urls(payload: Dict[str, Any]) -> List[str]:
+def extract_urls(payload: dict[str, Any]) -> list[str]:
     # Expected shape: {"urls": [...], "seed": {...}, "metadata": {...}}
     urls = payload.get("urls")
     if isinstance(urls, list):
@@ -60,21 +59,21 @@ def extract_urls(payload: Dict[str, Any]) -> List[str]:
     return []
 
 
-def seed_slug_from_payload(payload: Dict[str, Any], fallback: str) -> Optional[str]:
+def seed_slug_from_payload(payload: dict[str, Any], fallback: str) -> str | None:
     seed = payload.get("seed") or {}
     if isinstance(seed, dict) and seed.get("slug"):
         return str(seed["slug"])
     return fallback or None
 
 
-def load_existing_pool(pool_path: Path) -> Set[str]:
+def load_existing_pool(pool_path: Path) -> set[str]:
     """
     Returns set of URLs (already normalized) that exist in url_pool.jsonl.
     """
     if not pool_path.exists():
         return set()
 
-    seen: Set[str] = set()
+    seen: set[str] = set()
     with pool_path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -90,7 +89,7 @@ def load_existing_pool(pool_path: Path) -> Set[str]:
     return seen
 
 
-def append_pool_entries(pool_path: Path, entries: Iterable[Dict[str, Any]]) -> int:
+def append_pool_entries(pool_path: Path, entries: Iterable[dict[str, Any]]) -> int:
     pool_path.parent.mkdir(parents=True, exist_ok=True)
     n = 0
     with pool_path.open("a", encoding="utf-8") as f:
@@ -100,7 +99,7 @@ def append_pool_entries(pool_path: Path, entries: Iterable[Dict[str, Any]]) -> i
     return n
 
 
-def find_profile_dir(outputs_base: Path, profile_key: str, user_id: Optional[str]) -> Path:
+def find_profile_dir(outputs_base: Path, profile_key: str, user_id: str | None) -> Path:
     """
     Tries to locate outputs/<user_id>/<profile_key>.
     If user_id not given, autodetect if exactly one match exists.
@@ -149,7 +148,7 @@ def main() -> None:
     pool_path = profile_dir / "url_pool.jsonl"
 
     # Expand snapshot patterns to JSON files
-    json_files: List[Path] = []
+    json_files: list[Path] = []
     for s in args.snapshots:
         expanded = glob.glob(s)
         if expanded:
@@ -170,20 +169,20 @@ def main() -> None:
         # Accept YYYY-MM-DD or full ISO; normalize to UTC ISO.
         raw = args.seen_at.strip()
         if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
-            dt = datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
+            dt = datetime.fromisoformat(raw).replace(tzinfo=UTC)
         else:
             dt = datetime.fromisoformat(raw)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             else:
-                dt = dt.astimezone(timezone.utc)
+                dt = dt.astimezone(UTC)
         seen_at = dt.isoformat().replace("+00:00", "Z")
     else:
         seen_at = utc_now_iso()
 
     already = load_existing_pool(pool_path)
 
-    new_entries: List[Dict[str, Any]] = []
+    new_entries: list[dict[str, Any]] = []
     discovered = 0
     added = 0
 

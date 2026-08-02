@@ -1,21 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Dict, Iterator, Optional
+from typing import Any
 
-_run_ctx: ContextVar[Optional[Dict[str, Any]]] = ContextVar("run_ctx", default=None)
+_run_ctx: ContextVar[dict[str, Any] | None] = ContextVar("run_ctx", default=None)
 
 
-def get_run_ctx() -> Dict[str, Any]:
+def get_run_ctx() -> dict[str, Any]:
     return dict(_run_ctx.get() or {})
 
 
 def set_run_ctx(
     *,
-    run_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    profile_key: Optional[str] = None,
+    run_id: str | None = None,
+    user_id: str | None = None,
+    profile_key: str | None = None,
 ) -> None:
     ctx = get_run_ctx()
     if run_id is not None:
@@ -34,9 +35,9 @@ def clear_run_ctx() -> None:
 @contextmanager
 def run_ctx_scope(
     *,
-    run_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    profile_key: Optional[str] = None,
+    run_id: str | None = None,
+    user_id: str | None = None,
+    profile_key: str | None = None,
 ) -> Iterator[None]:
     ctx = get_run_ctx()
     if run_id is not None:

@@ -1,13 +1,18 @@
 # app/stepstone/search_playwright.py
 from __future__ import annotations
-import asyncio, re, random, math, json
-from typing import Dict, List, Optional, Any
-from urllib.parse import urljoin, urlparse, parse_qs, urlencode, urlunparse
-from datetime import datetime, timezone
+
+import json
+import math
+import random
+import re
+from datetime import UTC, datetime
+from typing import Any
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 from loguru import logger
-from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 from playwright._impl._errors import Error as PWError
+from playwright.async_api import TimeoutError as PWTimeout
+from playwright.async_api import async_playwright
 
 from .dates import (
     isoformat_utc,
@@ -41,9 +46,7 @@ def _with_page(url: str, page_num: int) -> str:
     return urlunparse((u.scheme, u.netloc, u.path, u.params, new_q, u.fragment))
 
 
-def _estimate_total_pages_from_html(
-    html: str, *, per_page: int = PER_PAGE_DEFAULT
-) -> Optional[int]:
+def _estimate_total_pages_from_html(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> int | None:
     if not html:
         return None
     match = PAGE_LAST_RE.search(html)
@@ -76,7 +79,7 @@ def _estimate_total_pages_from_html(
     return None
 
 
-def _find_total_in_jsonld(node: Any) -> Optional[int]:
+def _find_total_in_jsonld(node: Any) -> int | None:
     keys = ("numberOfItems", "totalJobPosting", "totalJobPostings", "totalItems", "totalResults")
     if isinstance(node, dict):
         for key in keys:
@@ -116,12 +119,12 @@ async def _accept_cookies(page):
             pass
 
 
-async def _extract_links(page) -> List[str]:
+async def _extract_links(page) -> list[str]:
     hrefs = await page.eval_on_selector_all(
         "a[href]", "els => els.map(a => a.getAttribute('href')).filter(Boolean)"
     )
     base = page.url
-    out: List[str] = []
+    out: list[str] = []
     for h in hrefs:
         if JOB_LINK_RE.search(h):
             out.append(urljoin(base, h))
@@ -136,14 +139,14 @@ async def _extract_links(page) -> List[str]:
 
 async def _extract_job_entries(
     page,
-    include_titles_any: List[str],
-    exclude_titles_any: List[str],
-) -> List[Dict[str, Any]]:
-    entries: List[Dict[str, Any]] = []
+    include_titles_any: list[str],
+    exclude_titles_any: list[str],
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
     seen: set[str] = set()
 
     nodes = await page.query_selector_all("[data-at='job-item'], article")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for node in nodes:
         link = None
         title_text = None
@@ -233,14 +236,14 @@ async def _safe_goto(page, url: str, try_accept_cookies: bool = False) -> None:
 
 async def search_stepstone_pw(
     seed_url: str,
-    pages: Optional[int] = None,
+    pages: int | None = None,
     delay_sec: float = 1.6,
-    include_titles_any: Optional[List[str]] = None,
-    exclude_titles_any: Optional[List[str]] = None,
-    max_jobs: Optional[int] = None,
+    include_titles_any: list[str] | None = None,
+    exclude_titles_any: list[str] | None = None,
+    max_jobs: int | None = None,
     max_pages_guard: int = 80,
-    stop_urls: Optional[List[str]] = None,
-) -> Dict:
+    stop_urls: list[str] | None = None,
+) -> dict:
     include_titles_any = [t.lower() for t in (include_titles_any or [])]
     exclude_titles_any = [t.lower() for t in (exclude_titles_any or [])]
     # stop_urls are kept for backwards compatibility but no longer drive crawling
@@ -270,10 +273,10 @@ async def search_stepstone_pw(
         )
         page = await ctx.new_page()
 
-        all_jobs: List[Dict[str, Any]] = []
+        all_jobs: list[dict[str, Any]] = []
         seen_urls: set[str] = set()
-        page_hits: List[Dict] = []
-        target_pages: Optional[int] = pages if pages and pages > 0 else None
+        page_hits: list[dict] = []
+        target_pages: int | None = pages if pages and pages > 0 else None
         guard = max(1, max_pages_guard or 80)
         estimated_pages = None
         per_page = PER_PAGE_DEFAULT

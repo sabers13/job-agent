@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 import time
-from typing import Callable, Generator, TypeVar
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from typing import TypeVar
 
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, OperationalError

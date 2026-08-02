@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Optional, Set
 
 
 def pool_path_for_profile(profile_dir: Path) -> Path:
@@ -19,10 +19,10 @@ def normalize_url(url: str) -> str:
     return cleaned.split("#", 1)[0].strip()
 
 
-def load_pool_set(path: Path) -> Set[str]:
+def load_pool_set(path: Path) -> set[str]:
     if not path.exists():
         return set()
-    seen: Set[str] = set()
+    seen: set[str] = set()
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             raw = line.strip()
@@ -43,10 +43,10 @@ def append_pool_entries(
     urls: Iterable[str],
     *,
     run_id: str,
-    seed_slug: Optional[str] = None,
+    seed_slug: str | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     with path.open("a", encoding="utf-8") as handle:
         for url in urls:
             normalized = normalize_url(url)

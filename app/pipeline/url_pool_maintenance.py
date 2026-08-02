@@ -4,10 +4,12 @@ import asyncio
 import json
 import random
 import time
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
+from app.config.settings import settings
 from app.fetching.polite_fetch import (
     AccessDeniedError,
     FetchError,
@@ -15,7 +17,6 @@ from app.fetching.polite_fetch import (
     TransientFetchError,
     fetch_job_html,
 )
-from app.config.settings import settings
 
 from .url_pool import normalize_url, pool_path_for_profile
 
@@ -41,7 +42,7 @@ class _RateLimiter:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _append_unavailable(
@@ -59,9 +60,9 @@ def _append_unavailable(
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
-def _load_pool_entries(path: Path) -> Tuple[List[Tuple[str, Optional[str]]], List[str]]:
-    entries: List[Tuple[str, Optional[str]]] = []
-    unique_urls: List[str] = []
+def _load_pool_entries(path: Path) -> tuple[list[tuple[str, str | None]], list[str]]:
+    entries: list[tuple[str, str | None]] = []
+    unique_urls: list[str] = []
     seen: set[str] = set()
     if not path.exists():
         return entries, unique_urls
@@ -84,7 +85,7 @@ def _load_pool_entries(path: Path) -> Tuple[List[Tuple[str, Optional[str]]], Lis
     return entries, unique_urls
 
 
-def _telemetry_status_hint(telemetry: Dict[str, Any]) -> Optional[int]:
+def _telemetry_status_hint(telemetry: dict[str, Any]) -> int | None:
     if "status" in telemetry and isinstance(telemetry["status"], int):
         return telemetry["status"]
     attempts = telemetry.get("attempts")
@@ -101,9 +102,9 @@ async def _check_unavailable_polite(
     *,
     sem: asyncio.Semaphore,
     timeout_sec: float,
-    preferred_backend: Optional[str],
-    limiter: Optional[_RateLimiter] = None,
-) -> Tuple[str, bool, Optional[str], bool]:
+    preferred_backend: str | None,
+    limiter: _RateLimiter | None = None,
+) -> tuple[str, bool, str | None, bool]:
     """
     Returns: (url, unavailable, error_str, access_denied)
     access_denied=True means we should NOT prune (keep URL) and just count it.
@@ -122,7 +123,7 @@ async def _check_unavailable_polite(
             if html and any(marker in html for marker in UNAVAILABLE_MARKERS):
                 return url, True, None, False
             return url, False, None, False
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return url, False, f"timeout_after={timeout_sec}s", False
         except AccessDeniedError as exc:
             return url, False, str(exc), True
@@ -138,8 +139,8 @@ def prune_unavailable_stepstone_urls(
     timeout: float = 10.0,
     logger=None,
     run_id: str,
-    preferred_backend: Optional[str] = None,
-) -> Dict[str, Any]:
+    preferred_backend: str | None = None,
+) -> dict[str, Any]:
     pool_path = pool_path_for_profile(profile_dir)
     entries, unique_urls = _load_pool_entries(pool_path)
     urls_to_check = unique_urls[: max(0, int(max_urls))]

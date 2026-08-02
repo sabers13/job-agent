@@ -1,32 +1,34 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
-import argparse
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone, timedelta
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any
 
 from dotenv import load_dotenv
 from prefect import flow, get_run_logger, task
 
-from app.config.settings import settings
 from app.config.focus import DEFAULT_FOCUS, get_focus_config
+from app.config.settings import settings
+
+from .common.utils import ensure_dir
+from .pipeline.output import write_summary
 from .pipeline.pipeline import fetch_job_details, write_job_bundle
 from .pipeline.state import load_state, save_state
-from .stepstone.search_http import search_stepstone
-from .stepstone.search_playwright import search_stepstone_pw
-from .pipeline.output import write_summary
 from .pipeline.url_pool import (
     append_pool_entries,
     load_pool_set,
     normalize_url,
     pool_path_for_profile,
 )
-from .common.utils import ensure_dir
 from .stepstone.dates import parse_iso8601_utc
+from .stepstone.search_http import search_stepstone
+from .stepstone.search_playwright import search_stepstone_pw
 
 load_dotenv()
 RUNS_BASE_DIR = settings.output_dir / "runs"
@@ -37,20 +39,20 @@ class SeedConfig:
     slug: str
     seed_url: str
     use_playwright: bool = False
-    include_titles_any: Optional[List[str]] = None
-    exclude_titles_any: Optional[List[str]] = None
+    include_titles_any: list[str] | None = None
+    exclude_titles_any: list[str] | None = None
     delay_sec: float = 1.2
-    max_jobs: Optional[int] = None
-    max_pages: Optional[int] = 80
+    max_jobs: int | None = None
+    max_pages: int | None = 80
 
 
 def _iso_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _resolve_seed_configs(
-    seeds: Optional[Sequence[SeedConfig]] = None,
-) -> List[SeedConfig]:
+    seeds: Sequence[SeedConfig] | None = None,
+) -> list[SeedConfig]:
     if seeds:
         return list(seeds)
 
@@ -84,19 +86,19 @@ def _resolve_seed_configs(
 
 
 @task(name="Load state")
-def _load_state_task() -> Dict[str, Any]:
+def _load_state_task() -> dict[str, Any]:
     return load_state()
 
 
 @task(name="Persist state")
-def _save_state_task(state: Dict[str, Any]) -> Dict[str, Any]:
+def _save_state_task(state: dict[str, Any]) -> dict[str, Any]:
     return save_state(state)
 
 
 @task(name="Search seed")
 def _search_seed_task(
     seed: SeedConfig,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if seed.use_playwright:
         return asyncio.run(
             search_stepstone_pw(
@@ -126,13 +128,13 @@ def _search_seed_task(
 def _write_seed_urls(
     run_dir: Path,
     seed: SeedConfig,
-    crawl_result: Dict[str, Any],
-    list_cutoff_iso: Optional[str],
+    crawl_result: dict[str, Any],
+    list_cutoff_iso: str | None,
 ) -> Path:
     ensure_dir(run_dir)
     cutoff_dt = parse_iso8601_utc(list_cutoff_iso)
     jobs = crawl_result.get("jobs") or []
-    filtered_jobs: List[Dict[str, Any]] = []
+    filtered_jobs: list[dict[str, Any]] = []
     if jobs:
         for job in jobs:
             if not cutoff_dt:
@@ -174,13 +176,13 @@ def _write_seed_urls(
 def _process_job_task(
     url: str,
     seed_slug: str,
-    cutoff_iso: Optional[str],
+    cutoff_iso: str | None,
     *,
     backend: str = "auto",
-    profile_key: Optional[str],
+    profile_key: str | None,
     use_llm_scoring: bool,
     apply_blocker_cap: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     logger = get_run_logger()
 
     # Resolve focus/profile consistently with FastAPI
@@ -299,11 +301,11 @@ def _process_job_task(
 
 @flow(name="Crawl StepStone Seeds")
 def crawl_and_save_flow(
-    seeds: Optional[Sequence[SeedConfig]] = None,
+    seeds: Sequence[SeedConfig] | None = None,
     *,
-    list_cutoff_iso: Optional[str] = None,
-    run_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    list_cutoff_iso: str | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
     """
     Crawl StepStone listing pages for the configured seeds and persist one JSON
     file per seed under the active run output directory.
@@ -336,14 +338,14 @@ def crawl_and_save_flow(
 
 @flow(name="Process StepStone Run")
 def process_run_flow(
-    cutoff_iso: Optional[str] = None,
+    cutoff_iso: str | None = None,
     *,
-    profile_key: Optional[str] = None,
+    profile_key: str | None = None,
     backend: str = "auto",
-    use_llm_scoring: Optional[bool] = None,
-    apply_blocker_cap: Optional[bool] = None,
-    run_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    use_llm_scoring: bool | None = None,
+    apply_blocker_cap: bool | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
     """
     Load the latest crawl run, deduplicate job URLs, then fetch job details and
     generate bundles.
@@ -391,7 +393,7 @@ def process_run_flow(
         logger.warning("No urls-*.json files found in {}", run_path)
         return {"processed": [], "skipped": []}
 
-    queue: List[Dict[str, str]] = []
+    queue: list[dict[str, str]] = []
     seen_global: set[str] = set()
     for path in files:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -425,7 +427,7 @@ def process_run_flow(
     pool_set = load_pool_set(pool_path)
     pool_size_before = len(pool_set)
 
-    accepted: List[Dict[str, Any]] = []
+    accepted: list[dict[str, Any]] = []
     for item in queue:
         url_norm = normalize_url(item.get("url") or "")
         item["url_norm"] = url_norm
@@ -436,7 +438,7 @@ def process_run_flow(
     skipped_pool_existing = len(queue) - len(accepted)
     logger.info(f"Skipping {skipped_pool_existing} URLs already in pool")
 
-    processed: List[Dict[str, Any]] = []
+    processed: list[dict[str, Any]] = []
     for item in accepted:
         result = _process_job_task(
             item["url"],
@@ -468,7 +470,7 @@ def process_run_flow(
             )
         processed.append(result)
 
-    reports: List[Dict[str, Any]] = []
+    reports: list[dict[str, Any]] = []
     for result in processed:
         if result.get("status") not in ("processed", "processed_potential"):
             continue
@@ -481,7 +483,7 @@ def process_run_flow(
             }
         )
 
-    analysis_entries: List[Dict[str, Any]] = []
+    analysis_entries: list[dict[str, Any]] = []
     for res in processed:
         details = res.get("details") or {}
         job = details.get("job") or {}
@@ -583,7 +585,7 @@ def process_run_flow(
     }
 
     try:
-        stamp = datetime.now(timezone.utc).isoformat().replace(":", "-")
+        stamp = datetime.now(UTC).isoformat().replace(":", "-")
         output_path = run_path / f"process_result_{stamp}.json"
         output_path.write_text(
             json.dumps(flow_output, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -595,7 +597,7 @@ def process_run_flow(
     return flow_output
 
 
-def _load_seeds_from_path(path: Path) -> List[SeedConfig]:
+def _load_seeds_from_path(path: Path) -> list[SeedConfig]:
     data = json.loads(path.read_text(encoding="utf-8"))
     return [SeedConfig(**item) for item in data]
 
@@ -666,7 +668,7 @@ def _parse_cli_args() -> argparse.Namespace:
 
 def _cli_entry() -> None:
     args = _parse_cli_args()
-    seeds: Optional[List[SeedConfig]] = None
+    seeds: list[SeedConfig] | None = None
     if getattr(args, "seeds_file", None):
         seeds = _load_seeds_from_path(args.seeds_file)
 
@@ -676,7 +678,7 @@ def _cli_entry() -> None:
         if max_age is not None:
             try:
                 max_age_float = float(max_age)
-                cutoff_dt = datetime.now(timezone.utc) - timedelta(days=max_age_float)
+                cutoff_dt = datetime.now(UTC) - timedelta(days=max_age_float)
                 list_cutoff_iso = cutoff_dt.isoformat(timespec="seconds").replace("+00:00", "Z")
             except Exception:
                 pass

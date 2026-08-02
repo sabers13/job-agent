@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,9 +29,9 @@ def _ensure_focus_json(
     *,
     profile_key: str,
     profile_name: str,
-    description: Optional[str],
-    focus_json: Dict[str, Any],
-) -> Dict[str, Any]:
+    description: str | None,
+    focus_json: dict[str, Any],
+) -> dict[str, Any]:
     """
     Ensure focus_config_json is self-contained for FocusProfileModel construction.
     """
@@ -44,12 +44,12 @@ def _ensure_focus_json(
     return out
 
 
-def list_profiles_for_user(db: Session, user_id: uuid.UUID) -> List[Profile]:
+def list_profiles_for_user(db: Session, user_id: uuid.UUID) -> list[Profile]:
     stmt = select(Profile).where(Profile.user_id == user_id)
     return list(db.scalars(stmt).all())
 
 
-def get_profile_for_user(db: Session, user_id: uuid.UUID, profile_key: str) -> Optional[Profile]:
+def get_profile_for_user(db: Session, user_id: uuid.UUID, profile_key: str) -> Profile | None:
     stmt = select(Profile).where(Profile.user_id == user_id, Profile.profile_key == profile_key)
     return db.scalars(stmt).first()
 
@@ -59,7 +59,7 @@ def create_profile_for_user(
     user_id: uuid.UUID,
     profile_key: str,
     profile_name: str,
-    description: Optional[str],
+    description: str | None,
     profile_json: Any,
 ) -> Profile:
     if isinstance(profile_json, str):
@@ -91,9 +91,9 @@ def update_profile_for_user(
     user_id: uuid.UUID,
     profile_key: str,
     profile_name: str,
-    description: Optional[str],
+    description: str | None,
     profile_json: Any,
-) -> Optional[Profile]:
+) -> Profile | None:
     existing = get_profile_for_user(db, user_id, profile_key)
     if not existing:
         return None
@@ -121,7 +121,7 @@ def upsert_profile_for_user(
     user_id: uuid.UUID,
     profile_key: str,
     profile_name: str,
-    description: Optional[str],
+    description: str | None,
     profile_json: Any,
 ) -> Profile:
     existing = get_profile_for_user(db, user_id, profile_key)
@@ -178,7 +178,7 @@ def get_focus_profile_model_for_user(
     db: Session,
     user_id: uuid.UUID,
     profile_key: str,
-) -> Optional[FocusProfileModel]:
+) -> FocusProfileModel | None:
     prof = get_profile_for_user(db, user_id, profile_key)
     if not prof:
         return None
