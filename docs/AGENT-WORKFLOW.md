@@ -176,6 +176,22 @@ Then fill in the NARRATIVE section only. The FACTS section is generated — do n
 
 ---
 
+### Briefs must not restate gate numbers
+
+A brief that hard-codes `208 passed` goes stale the moment an unrelated slice lands.
+`tasks/slice-02.md` did exactly that: 90 tests arrived from CP‑1 remediation between the
+brief being written and being executed, and Codex refused to start on the contradiction —
+correctly, but at the cost of a round trip.
+
+Instead: **Step 0 of every brief is "run `make gate` and record the numbers."** All
+later "must be identical" checks compare against that measurement. `ci/baseline.json` is
+the single source of truth for gate values; a brief points at it and never copies from it.
+
+This is CP1‑6's lesson one level up — a test that restates a constant the app owns, and a
+brief that restates a number the gate owns, fail the same way.
+
+---
+
 ## 3. The report — script generates facts, Codex adds narrative
 
 `scripts/slice_report.sh`:

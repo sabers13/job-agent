@@ -159,7 +159,9 @@ is *purely* mechanical. Hand edits inside a blame-ignored commit become invisibl
 ## Stop and ask
 
 - The reproduction check below fails — it means something in the diff is not from ruff.
-- `pytest` is anything other than `208 passed, 0 failed, 0 skipped, 1 deselected`.
+- The `pytest` result after the pass differs **in any way** from the one you recorded
+  before starting (see Gate below). Do not compare against a number written in this
+  brief — measure it yourself at slice start.
 - Removing `get_db` breaks an import, or `findReferences` shows a second reference.
 - A ruff fix changes a string literal, a default argument value, or anything inside
   `alembic/versions/` beyond import formatting.
@@ -171,15 +173,32 @@ is *purely* mechanical. Hand edits inside a blame-ignored commit become invisibl
 make gate
 ```
 
-Expected after both commits — these are measured, not estimated. A full dry run of this
-slice was performed at `88d1d56` before the brief was written:
+**Step 0 — record the starting numbers yourself.** Run `make gate` before touching
+anything and write the result into your report. Every "must be identical" below is
+against *that* measurement, not against a figure in this document.
+
+```bash
+make gate     # record: pytest, ruff, pyright, imports
+```
+
+> This brief originally hard-coded `208 passed`. Between it being written and being
+> executed, CP‑1 remediation added 90 tests, and Codex correctly refused to start on the
+> contradiction. **Do not reintroduce a literal count here.** A brief that restates a
+> gate number goes stale the moment an unrelated slice lands — the same defect as
+> CP1‑6's duplicated constants, one level up. `ci/baseline.json` is the single source of
+> truth; this document points at it.
+
+Expected after both commits, relative to Step 0:
 
 ```
-pytest    208 passed, 0 failed, 0 skipped, 1 deselected   <- MUST be identical
-ruff      31 findings  (down from 747)
-pyright   32 errors    (must not rise)
-imports   2 broken     (must not rise; A7 is Slice 2.9's job)
+pytest    identical to Step 0 in every field   <- a change here is a behaviour change
+ruff      ~31 findings  (measured; was 747 at Slice 0)
+pyright   must not rise
+imports   must not rise  (A7 is Slice 2.9's job)
 ```
+
+The ruff figure comes from a full dry run of this slice at `88d1d56`. Treat it as an
+expectation, not a target — measure and bank what you actually get.
 
 Lower `ruff_findings` in `ci/baseline.json` to whatever you actually measure, in
 commit 2.
@@ -189,12 +208,12 @@ commit 2.
 The allowlist cannot police this slice — it is nearly the whole repo. These four checks
 can. All four must pass before the slice is done.
 
-**1. The suite is bit-for-bit unaffected.** 208 passed / 0 failed, before and after. Any
-other number is a behaviour change and a stop-and-ask.
+**1. The suite is bit-for-bit unaffected.** Identical to your Step 0 measurement in every
+field. Any difference is a behaviour change and a stop-and-ask.
 
 ```bash
 .venv/bin/python -m pytest -q -p no:cacheprovider | tail -1
-# must read exactly: 208 passed, 1 deselected, ... 
+# must match the line you recorded in Step 0, exactly
 ```
 
 **2. The diff is reproducible from the parent commit.** Re-run the same two ruff commands
