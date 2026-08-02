@@ -113,6 +113,18 @@ Both patches were written from reading; both broke on contact with the running c
 One file per slice: `tasks/slice-06a.md`. Fixed schema. The allowlist is the important
 part: it turns scope from an instruction into something a script can check.
 
+> **Codex cannot run this suite inside its restricted sandbox.** `TestClient` stalls in
+> its AnyIO portal, so the gate has to be run outside it. Measured during Slice 2, which
+> only touched formatting — but Slices 6 and 7 are the API extraction, and their entire
+> acceptance criterion is that the HTTP contract tests pass unchanged. Confirm the
+> sandbox situation before briefing either, or the worker cannot verify its own work.
+
+> **`tasks/<SLICE-ID>.report.md` is always permitted and need not be listed.** Every
+> brief ends by running `scripts/slice_report.sh`, which creates it. Slice 2 stopped at
+> the final step because the brief said "run the report" while the allowlist forbade the
+> file the report script produces — contradictory instructions, and Codex was right to
+> refuse rather than pick one. The report is the deliverable, not a scope violation.
+
 ```markdown
 # slice-06a — Extract run lifecycle into services/
 
