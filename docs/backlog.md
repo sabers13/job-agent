@@ -96,6 +96,7 @@ Candidates only. Each needs evidence from the liveness audit before anything is 
 
 | Item | Status |
 | --- | --- |
+| Suite is offline, enforced | Done for **this** process — `tests/net_guard.py` + `tests/test_suite_hermeticity.py` §3 (CP1-8). **Does not cover child processes** — see the note below before relying on it |
 | CI running the gate on every push | Done — `.github/workflows/ci.yml` + `ci/gate.py` ratchet (pytest, pyright, ruff, import-linter) |
 | Architecture enforced as a contract | Done — `.importlinter`, seeded at 2 broken (A7). Slice 0 |
 | `import-linter` pinned `<2.6` | **Constraint, not a preference** — 2.6+ needs `rich>=14.2`; prefect 3.1.15 needs `rich<14`. Revisit when prefect relaxes its pin |
@@ -105,3 +106,38 @@ Candidates only. Each needs evidence from the liveness audit before anything is 
 | Docker image | `Dockerfile` + `.dockerignore` written |
 | Tagged release | **Not cut.** Deliberately left to a human — see the note in the handover |
 | Sentry / Dependabot / changelog automation | Skipped — solo, local-first, no consumers |
+
+### The network guard stops at the process boundary
+
+`tests/net_guard.py` monkeypatches `socket` **in the pytest process**. A child process
+gets a fresh interpreter and an unpatched socket module, so anything the suite spawns can
+reach the network freely and neither the raise nor the record will show it. The guard's
+own tests cannot detect this, because they run in-process by construction.
+
+Nothing crosses that boundary in the gate today — measured, not assumed: installing the
+guard turned exactly two tests red, both in-process, and the batch path is not exercised
+by any gated test. So this is a **latent** gap, recorded now because it stops being latent
+on a specific, already-planned change.
+
+Where it will bite, precisely:
+
+- **[app/fastapi_run.py:1297](../app/fastapi_run.py#L1297)** is the spawn site. It runs
+  `python -m app.prefect_run crawl` and then `... process` via `subprocess.run`, streaming
+  both into the run log. `app/prefect_run.py` is what runs *inside* those children — it
+  spawns nothing itself, so instrumenting it is not the fix and grepping it for
+  `subprocess` finds nothing.
+- **Slice 2.5's spike drives batch execution directly**, which is exactly the path above.
+  The first gated test that exercises it re-opens the CP1-8 hole one level out: a live
+  crawl from inside the "offline" suite, with the suite's own hermeticity file still
+  reporting green.
+
+Two options when that lands, neither costed yet: refuse the spawn in tests (patch the
+subprocess boundary itself, so the *attempt* fails loudly and the child never starts), or
+propagate the guard into the child through `env` — `fastapi_run.py` already builds an
+`env` for the call, so a `JOBAGENT_NO_NETWORK` that a `sitecustomize` or conftest honours
+is feasible. **The first is preferable for the gate**: a test that needs a real child
+process to do real work is an `external` test, not a hermetic one, and refusing the spawn
+says so at the point of the mistake.
+
+Whoever writes the Slice 2.5 brief owns this. Note it in the brief's *Stop and ask* block
+rather than discovering it from a green run.

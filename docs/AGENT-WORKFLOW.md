@@ -63,6 +63,49 @@ lower the baseline **in the same commit**. `gate.py` prints the slack under "Sla
 bank." That's a required report field, not a nicety — unbanked slack silently widens the
 tolerance for every later slice.
 
+### A review's suggested code is a hypothesis, not a spec
+
+Reviews in this repo carry two different things, and they have different standing:
+
+| A review supplies | Standing |
+| --- | --- |
+| The **evidence** — the failing input, the measurement, the mechanism, the file and line | Authoritative. Reproduce it; do not re-argue it. |
+| The **suggested patch** | A hypothesis. The implementer derives the actual fix and owns it. |
+
+The division of labour is: **the reviewer supplies the evidence, the implementer derives
+the fix.** A reviewer reads code; an implementer runs it. Those find different things, and
+the second is what ships.
+
+This is not a caution against sloppy reviews — CP‑1's diagnoses were **both correct and
+both precisely located**, and its suggested patches were **both wrong**:
+
+- **CP1-4** — the diagnosis (UTF‑8 codepoints split at chunk boundaries, destroyed on both
+  sides, inside a must-never-break contract) was exactly right, and the two-test analysis
+  of why the oracle missed it was right. The suggested fix — retreat to the last complete
+  codepoint — stalls the offset whenever `max_bytes` is narrower than the character, so the
+  GUI polls one offset forever. It trades corruption for an availability bug, and the
+  review's own suggested test would **hang rather than fail**. The landed fix extends the
+  read instead, which is why `max_bytes` is soft — [ADR 0009](adr/0009-log-chunks-are-codepoint-aligned.md).
+- **CP1-8** — the diagnosis (neither monkeypatch binds; the callee is `ss_search`; the
+  accept set absorbs the difference between a machine with egress and one without) was
+  right down to the line numbers. The suggested assertion,
+  `response.json() == {"results": [], "count": 0}`, was **invented from the inert stub** —
+  the adapter actually returns `{ok, backend, url, final_url, title}`. Implemented as
+  written it would have failed, and the obvious way to make it pass is to edit the stub to
+  match the assertion, which restores exactly the fiction the item was raised about.
+
+Both patches were written from reading; both broke on contact with the running code. So:
+
+- **Implement from the code, verify against the review.** If the suggested patch and the
+  code disagree, the code wins and the review gets annotated — see the note at
+  CP-1-REVIEW.md §CP1-4 and §CP1-8, both amended after the fact.
+- **A suggested patch that turns out to be wrong is not a review defect**, and should not
+  be reported as one. It is the expected split: the reviewer had the evidence and not the
+  runtime. Record *why* it was wrong, because that reasoning is usually the real finding —
+  ADR 0009 exists entirely because CP1-4's suggested fix was wrong in an interesting way.
+- **Never edit the code under test to make a suggested assertion pass.** That inverts the
+  direction of authority and is how a stub grows to fit its assertion.
+
 ---
 
 ## 2. The brief — Claude writes, Codex reads

@@ -52,11 +52,33 @@ Two boundary cases:
 - The protocol is lossless: a client walking the file with the returned offsets reassembles
   it byte-identically at any chunk size. Verified over 300 random mixed-width bodies at
   every size from 1 to 20, plus four malformed inputs.
+
+  > ⚠️ **That verification is not in the suite, and neither is the ≤3-byte bound — this is
+  > [CP-1-REVIEW.md §S7](../CP-1-REVIEW.md#s7--adr-0009s-soft-limit-is-a-decision-no-test-can-defend),
+  > open, scheduled before Slice 5.** Read it before touching this module. The CP‑1 second
+  > pass reproduced the claim above and it holds — 400 bodies × sizes 1–20, lossless,
+  > always progressing, **maximum overshoot exactly 3** — but widening the overshoot from 3
+  > bytes to 64 leaves the entire gate green. So the number this ADR argues from is
+  > currently defended by prose only, and **Slice 5 moves this module and inherits none of
+  > it.**
+  >
+  > `test_http_honours_the_same_cap_as_the_function` looks like the missing check and is
+  > not: it asserts `<= LOG_CHUNK_MAX_BYTES + 3` against an all-ASCII body, so the `+ 3` is
+  > decorative and the assertion passes identically at `+ 0`. The slack is never exercised
+  > where it is asserted.
+  >
+  > Recorded here rather than only in the review because a Slice 5 implementer opens the
+  > ADR, not `STATE.md`.
 - **Do not "tighten" this to `assert len(chunk) <= max_bytes`.** The assertion looks correct
   and would be reintroducing the bug. This is the reason the ADR exists — the invariant is
   counter-intuitive and cheap to break from the test side. Also assert on *byte* length, not
   `len(chunk)`: the two agree only for ASCII, which is how the original
   `test_max_bytes_is_capped` passed while measuring the wrong quantity.
+
+  The bound S7 asks for is the **two-sided** one, and that is why this prohibition and that
+  gap coexist without contradiction: a chunk never exceeds `max_bytes + 3`, **and** a chunk
+  containing a wide character at a narrow `max_bytes` *does* exceed `max_bytes`. Asserting
+  only the first half is the tightening this bullet forbids.
 - Two private helpers, `_utf8_sequence_length` and `_last_sequence_start`, now carry the
   guarantee. Slice 5 moves this module and must move them with it; they are listed in
   [refactor-plan.md](../refactor-plan.md) §Slice 5 precisely because internal symbols are
