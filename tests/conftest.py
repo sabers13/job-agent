@@ -18,7 +18,7 @@ import os
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 
@@ -449,6 +449,56 @@ def client(
             yield c
     finally:
         app.dependency_overrides.clear()
+
+
+class StubbedAdapter(NamedTuple):
+    """What `stub_stepstone_adapter` hands back: the payload, and what the handler passed."""
+
+    payload: dict[str, Any]
+    calls: list[tuple[dict[str, Any], str | None]]
+
+
+@pytest.fixture
+def stub_stepstone_adapter(monkeypatch: pytest.MonkeyPatch) -> StubbedAdapter:
+    """Stub `/search_stepstone` at the adapter boundary — CP1-8.
+
+    **`ss_search` is the name the handler calls**, and binding anything else is how this
+    route reached `https://www.stepstone.de/en/` from inside the offline gate for as long
+    as it did. The two names the previous stub used were both wrong in ways that looked
+    right: `search_stepstone_http` does not exist on `app.fastapi_run` at all
+    (`fastapi_run.py:79` imports it *as* `crawl_http`), and `search_stepstone` is the
+    route handler itself, which FastAPI captured at decoration time, so rebinding the
+    module attribute changes nothing. Both were bound with `raising=False`, which
+    swallowed the `AttributeError` the first one should have raised.
+
+    So: **`raising=True`, by omission, and never turn it off here.** Slice 3 moves
+    `app/stepstone/` into `sources/` and backlog **D3** makes `stepstone/smoke.py` a
+    deletion candidate; when either lands, this fixture must fail loudly rather than
+    silently stub a name nothing reads.
+
+    `async def`, because the handler awaits it — a lambda returning a dict raises
+    "object dict can't be used in 'await' expression" straight into the handler's broad
+    `except Exception` and comes back as a 500.
+    """
+    import app.fastapi_run as fr
+
+    # Deliberately not the real adapter's values: if the stub is ever bypassed, the
+    # assertion fails on content rather than passing on a shape that happens to match.
+    payload: dict[str, Any] = {
+        "ok": True,
+        "backend": "stub",
+        "url": "https://example.test/stubbed",
+        "final_url": "https://example.test/stubbed",
+        "title": "Stubbed adapter result",
+    }
+    calls: list[tuple[dict[str, Any], str | None]] = []
+
+    async def _stub(query: dict[str, Any], backend_override: str | None = None) -> dict[str, Any]:
+        calls.append((query, backend_override))
+        return dict(payload)
+
+    monkeypatch.setattr(fr, "ss_search", _stub)
+    return StubbedAdapter(payload=payload, calls=calls)
 
 
 @pytest.fixture

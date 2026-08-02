@@ -148,20 +148,28 @@ def test_run_state_starts_empty(client_unauthed) -> None:
 
 
 def test_search_stepstone_returns_the_adapter_result(
-    client_unauthed, monkeypatch: pytest.MonkeyPatch
+    client_unauthed, stub_stepstone_adapter
 ) -> None:
-    import app.fastapi_run as fr
+    """The route hands the adapter's dict back verbatim, and passes its query through.
 
-    monkeypatch.setattr(
-        fr, "search_stepstone_http", lambda *a, **k: {"results": [], "count": 0}, raising=False
-    )
-    monkeypatch.setattr(
-        fr, "search_stepstone", lambda *a, **k: {"results": [], "count": 0}, raising=False
-    )
+    CP1-8. This test used to bind two stubs with `raising=False`, neither of which was
+    the name the handler calls, so it ran the real adapter and issued a live request to
+    `https://www.stepstone.de/en/` from the offline gate. `in (200, 422, 500)` then
+    accepted the result either way: 200 with egress, 500 without, because the handler
+    wraps everything in `except Exception` (`fastapi_run.py:397`). Machine-dependent and
+    result-invariant — CP1-7's shape, one layer out.
 
-    response = client_unauthed.get("/search_stepstone", params={"what": "data analyst"})
+    With the adapter genuinely stubbed (`stub_stepstone_adapter`, bound to `ss_search`
+    with `raising=True`) the outcome is determinable, so it is asserted as one code and
+    one body. The `calls` assertion is what makes the stub's *binding* observable: if it
+    ever stops binding, this fails on an empty call list rather than on a status code
+    the accept set would have absorbed.
+    """
+    response = client_unauthed.get("/search_stepstone", params={"url": "https://example.test/x"})
 
-    assert response.status_code in (200, 422, 500), response.status_code
+    assert response.status_code == 200, response.text
+    assert response.json() == stub_stepstone_adapter.payload
+    assert stub_stepstone_adapter.calls == [({"url": "https://example.test/x"}, None)]
 
 
 def test_search_stepstone_list_validates_its_body(client_unauthed) -> None:

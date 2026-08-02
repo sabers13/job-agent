@@ -62,7 +62,7 @@ def test_protected_routes_reject_a_garbage_token(client_unauthed, method: str, p
     assert response.status_code == 401
 
 
-def test_public_routes_do_not_401(client_unauthed) -> None:
+def test_public_routes_do_not_401(client_unauthed, stub_stepstone_adapter) -> None:
     """Public routes may fail for their own reasons, but never for authentication.
 
     Recorded deliberately: `/bundle`, `/job_details`, `/search_stepstone*`,
@@ -70,6 +70,14 @@ def test_public_routes_do_not_401(client_unauthed) -> None:
     pipeline and network endpoints. That is the current contract, pinned here so a
     change is visible. Whether it *should* be the contract is a bucket-C question
     (backlog A12).
+
+    `stub_stepstone_adapter` is requested for its side effect, and it is not optional:
+    a sweep over every public route walks straight into `/search_stepstone`, which
+    fetched `https://www.stepstone.de/en/` for real until CP1-8. `!= 401` accepted the
+    500 that came back on a machine without egress, so this test was the second of the
+    two live requests leaving the gate — and, unlike the first, it never claimed to stub
+    anything. The other network-facing routes here 422 on the empty body before they
+    reach a fetch; this one takes its URL from a default.
     """
     for method, path in live_public_routes():
         if path.startswith("/gui/"):
