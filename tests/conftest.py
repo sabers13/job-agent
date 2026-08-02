@@ -66,6 +66,76 @@ os.environ.update(TEST_ENV)
 
 
 # --------------------------------------------------------------------------- #
+# Network — the fourth claim in this module's docstring, made executable.
+#
+# "No live network" was prose until CP1-8. `tests/net_guard.py` carries the design
+# notes; `tests/test_suite_hermeticity.py` asserts the guard is installed and that it
+# actually refuses, so a future edit cannot neuter it and leave the claim standing.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _refuse_outbound_connections() -> Iterator[None]:
+    """Session-scoped and autouse: no test may opt out, and none has to opt in."""
+    from tests import net_guard
+
+    with pytest.MonkeyPatch.context() as mp:
+        net_guard.install(mp)
+        yield
+
+
+# Checked per phase by a hook rather than by a fixture, for two reasons. A swallowed
+# refusal must fail the **call** phase — a teardown failure leaves the test counted as
+# passed, and `pytest_passed` is `ci/baseline.json`'s one ratchet key. And the check has
+# to run outside every `except Exception:` in `app/`, which a fixture body does but an
+# assertion inside the test does not.
+#
+# Each wrapper resets on the failure path instead of reporting: a refusal that already
+# propagated is one red test, not one red test plus a stale record failing the next
+# phase as well.
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item: pytest.Item):
+    from tests import net_guard
+
+    net_guard.reset()
+    try:
+        result = yield
+    except BaseException:
+        net_guard.reset()
+        raise
+    net_guard.check_and_reset("fixture setup")
+    return result
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item: pytest.Item):
+    from tests import net_guard
+
+    try:
+        result = yield
+    except BaseException:
+        net_guard.reset()
+        raise
+    net_guard.check_and_reset("the test")
+    return result
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None):
+    from tests import net_guard
+
+    try:
+        result = yield
+    except BaseException:
+        net_guard.reset()
+        raise
+    net_guard.check_and_reset("fixture teardown")
+    return result
+
+
+# --------------------------------------------------------------------------- #
 # Profiles
 # --------------------------------------------------------------------------- #
 
