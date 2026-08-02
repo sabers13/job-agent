@@ -26,7 +26,8 @@ point is that this suite grades them.
 | Suite hermeticity — `.env.dev` leak | ✅ `bf88f64` |
 | **CP1-5 — cross-tenant isolation** | ✅ **probe clean, no auth bug.** 15 probes + 5 controls |
 | CP1-1, CP1-2, CP1-3, CP1-6, CP1-7 | ✅ one commit, `tests/` + constant promotions |
-| **CP‑1 re-run** | ⬜ **the remaining blocker** |
+| **L3 `test_pipeline_offline.py`** | ✅ 43 tests · closes CP‑1 S6 · found A14, A15, A16 |
+| **CP‑1 re-run** | ⬜ **the remaining blocker — nothing else is outstanding** |
 | **Slice 2 — lint + packaging** | 🛑 **HALTED** until the CP‑1 re-run is clean |
 | Slice 3 | 🛑 blocked by the CP‑1 re-run |
 | Slice 2.5 spike · Slice 2.9 `app/domain/` · Slices 4–10 · Phase 5 | ⬜ |
@@ -59,30 +60,35 @@ stale. A backup claim is the one kind of stale state that costs you the work.)
 ## Gate (`ci/baseline.json`) — measured, not remembered
 
 ```
-pytest    248 passed, 0 failed, 0 skipped, 1 deselected (external)
+pytest    291 passed, 0 failed, 0 skipped, 1 deselected (external)
 pyright   32 errors    (basic; off=0, standard=32, strict=1036)
 ruff      747 findings (676 auto-fixable — that is Slice 2; expect 31 after)
 imports   2 broken     (both from A7, one edge)
 ```
 
-Banked twice. 208 → 226 in `d9f4ce7` (8 hermeticity tests, 10 from CP1-4), then **226 →
-248** with the CP‑1 batch: 20 in `test_cross_tenant_isolation.py`, 1 for CP1-3's
-`test_rescoring_an_already_scored_job_is_stable`, 1 for CP1-6's
-`test_http_honours_the_same_cap_as_the_function`. `pytest_passed` is the one
-`HIGHER_IS_BETTER` key, so this is the ratchet moving in the permitted direction.
+Banked three times. 208 → 226 in `d9f4ce7` (8 hermeticity tests, 10 from CP1-4); 226 →
+248 with the CP‑1 batch (20 cross-tenant, 1 rescoring, 1 log-cap); **248 → 291** with the
+L3 integration suite, all 43 in `tests/integration/test_pipeline_offline.py`.
+`pytest_passed` is the one `HIGHER_IS_BETTER` key, so this is the ratchet moving in the
+permitted direction.
 
-**The other four did not move**, and that is the result to check rather than skim: CP1-6
-promoted constants, which is behaviour-preserving by construction, so a change in `ruff`
-or `imports` would have meant the promotion did something it was not supposed to.
+**The other four have not moved across any of the three**, and that is the result to check
+rather than skim. The CP‑1 batch only promoted constants; the L3 suite adds no `app/` code
+at all. Either would have shown up in `ruff` or `imports` had it done more than claimed.
 
 **The old 208 was not a comparable number** — measured with an ambient environment
 leaking in, it meant something different on every machine. **248 is verified identical
 with and without `.env.dev` sourced**, re-checked on 2026-08-02. Re-run that both ways
 whenever this number moves; it is the only thing that makes it mean anything.
 
-Coverage is a **reported metric, never a gate** (R3): `fastapi_run.py` 50%,
-`run_manager.py` 82%, `scoring.py` 78%, `pipeline/pipeline.py` **22%**,
-`prefect_run.py` 0%, total 46%.
+Coverage is a **reported metric, never a gate** (R3). Re-measured 2026-08-02:
+`pipeline/pipeline.py` **22% → 92%**, `pipeline/parsers.py` **0% → 97%**,
+`pipeline/output.py` 87%, `potential_bucket.py` 91%, `scoring.py` 79%,
+`run_manager.py` 82%, `fastapi_run.py` 50%, `prefect_run.py` 0%, total **46% → 52%**.
+
+The two that moved are the L3 suite's doing, and the number is the *least* interesting
+part of it — 43 tests bought three filed bugs (**A14**, **A15**, **A16**) that 22%
+coverage had given no hint of.
 
 ## Blocked / do not touch
 
@@ -100,11 +106,11 @@ Coverage is a **reported metric, never a gate** (R3): `fastapi_run.py` 50%,
 [CP-1-REVIEW.md](CP-1-REVIEW.md) supersedes this list — these are the gaps that were
 *visible* before it. Its finding is that the dangerous ones were invisible.
 
-- **`tests/integration/test_pipeline_offline.py` does not exist**; `pipeline/pipeline.py`
-  at **22%**. Branch `fix/pipeline-offline` was planned and never created.
-- `app/pipeline/parsers.py` at **zero** coverage (CP‑1 S6) — `job_html` and
-  `tests/fixtures/jobs/job_stepstone_1.html` are read by nothing. With the missing
-  integration test, parse → score → artifact is covered at one of three stages.
+- ~~`tests/integration/test_pipeline_offline.py` does not exist~~ · ~~`parsers.py` at zero
+  coverage (CP‑1 S6)~~ — ✅ **both closed 2026-08-02.** 42 tests; `job_html` and
+  `job_stepstone_1.html` are wired at last. parse → score → artifact is now covered at all
+  three stages instead of one. It surfaced three defects — backlog **A14**, **A15**,
+  **A16** — all pinned as-is and none fixed.
 - `prefect_run.py` at 0% — Slice 8 rewrites it, verified differentially (D2/R7).
 - 18 of 42 routes unauthenticated (**A12**) — pinned, not endorsed; CP‑3 agenda. **CP1-5
   closed the other half**: the 24 protected routes are now tested for "rejects a
@@ -115,23 +121,30 @@ Coverage is a **reported metric, never a gate** (R3): `fastapi_run.py` 50%,
   alone: it is not DB-backed, so it was outside the probe's scope, and D1 has already
   decided the DB surface supersedes it. **CP‑3 agenda, beside A12.**
 
-## Next three actions
+## Next action — there is only one
 
-All CP‑1 remediation. **Slice 2 does not resume until CP‑1 is clean** — its own
-verification is graded against this oracle.
+**Re-run CP‑1.** Everything it asked for is done: CP1-1 … CP1-7 closed, S6 closed, and the
+L3 integration suite written rather than 22% accepted. Only a clean verdict unblocks Slice
+3 and resumes Slice 2 from `tasks/slice-02.md` — its own verification is graded against
+this oracle, which is the whole reason the halt exists.
 
-1. **Write `tests/integration/test_pipeline_offline.py`** on `fix/pipeline-offline`, or
-   explicitly accept 22%. Slice 3 moves `stepstone/` into `sources/` and this is the only
-   test that would notice if the parse → score handoff broke during the move.
-2. **Re-run CP‑1.** Only a clean verdict unblocks Slice 3 and resumes Slice 2. CP1-1 …
-   CP1-7 are closed, so this is the whole remaining blocker.
-3. **Then Slice 2 resumes** from `tasks/slice-02.md`, and Slice 3 unblocks.
+What the re-run should look at that the first pass could not:
 
-Then S1–S6 (minus CP1-7, promoted) before Slice 5; L1–L4 before Slice 7. **S5 is the
-cheapest and is now the odd one out** — `test_blockers_still_dominate_when_the_llm_is_mocked`
-still asserts a magic `<= 35` two functions after an identical property is asserted
-relationally as `<= blocking.blocker_cap_hard`. Left alone deliberately: it is an S item and
-this batch was scoped to the B list.
+- `tests/integration/test_pipeline_offline.py` — new, 43 tests, and the only file in the
+  suite that exercises `parsers.py` at all.
+- Whether **A14/A15/A16** are correctly *characterised* rather than merely noted. Two of
+  them are asserted in their broken state (`pytest.raises`, and "all these scores are
+  equal"), so they fail the day someone fixes the bug. That is deliberate and is the
+  TEST-STRATEGY §2.4 pattern, but it is worth a second opinion.
+- The mutation evidence. 29 mutations, results in the commit message; it found two
+  can't-fail assertions in the new file itself, which is the same defect class CP‑1 was
+  convened over.
+
+Then S1–S6 (minus CP1-7 and S6, both closed) before Slice 5; L1–L4 before Slice 7. **S5 is
+the cheapest leftover** — `test_blockers_still_dominate_when_the_llm_is_mocked` still
+asserts a magic `<= 35` two functions after the identical property is asserted relationally
+as `<= blocking.blocker_cap_hard`. Left alone deliberately, twice now: it is an S item and
+neither batch was scoped to it.
 
 > **CP-1's items are `CP1-n`; `backlog.md` bucket B is `Bn`.** They used to be two
 > colliding `B1`–`B7` sequences held apart by a naming convention. Renumbered mechanically

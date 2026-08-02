@@ -587,7 +587,17 @@ blocked = score_job(..., focus, use_llm_scoring=True)
 assert blocked["score"] <= focus.blocker_cap_hard
 ```
 
-### S6 — Staged parse coverage that was never wired up
+### S6 — Staged parse coverage that was never wired up ✅ CLOSED 2026-08-02
+
+> **Closed by `tests/integration/test_pipeline_offline.py`.** `job_html` and
+> `job_stepstone_1.html` are now read by §1 of that file, which takes `parsers.py` from
+> zero coverage. The fixture was kept rather than deleted — it earns its place as the one
+> real-world sample; the degenerate shapes (no ld+json, malformed JSON, `@graph` nesting,
+> escaped JSON, `jobLocation` lists) are built inline in the test, where a two-line HTML
+> string is more legible than a file. `tests/fixtures/profiles/` is still empty and stays
+> that way: `profile_factory` is the better answer, per TEST-STRATEGY §6.
+
+
 
 `conftest.py` defines `job_html` — "Raw HTML fixture, for the one place parsing itself is
 under test." **No test uses it.** `tests/fixtures/jobs/job_stepstone_1.html` is read by
@@ -658,12 +668,21 @@ container* — that verification is not in the gate.
 ## Already flagged, restated with a judgement
 
 - **`tests/integration/test_pipeline_offline.py` missing; `pipeline/pipeline.py` at 22%.**
-  Agreed, and it is the largest single gap — but it is a *visible* one, which is why it
-  ranks below CP1-1 … CP1-6. Note the interaction with **S6**: `parsers.py` is also uncovered, so
-  the gap is wider than the 22% figure suggests. Recommend writing the integration test
-  before Slice 3 rather than accepting 22%, on the grounds that Slice 3 moves
-  `stepstone/` into `sources/` and this is the only test that would notice if the
-  parse → score handoff broke during the move.
+  ✅ **Written 2026-08-02.** The recommendation — write it rather than accept 22% — was
+  taken. 42 tests across parse, parse → score, fetch → parse → score, and score → artifact.
+
+  The recommendation's stated justification held up under contact: the parse → score
+  handoff is genuinely the seam nothing else covers, because every scoring test builds its
+  job with `job_factory`, which constructs a `UnifiedJobPosting` directly and parses
+  nothing. Mutation-checked — deleting `description_text` from the parser's return leaves
+  the entire scoring-invariant file green and turns the handoff tests red.
+
+  Writing it also surfaced three defects the 22% figure gave no hint of, now filed as
+  backlog **A14** (uncaught `TypeError` in the staleness comparison, reachable from the
+  batch path), **A15** (`candidate_german_level` inert with the LLM off) and **A16**
+  (`os.environ` read outranking settings). All three are pinned as-is, none fixed — which
+  is TEST-STRATEGY §2.4, and the reason a characterisation pass is worth more than a
+  coverage number.
 
 - **A11 (`score_job` mutates the caller's dict).** The determinism invariant does **not**
   catch it — see CP1-1. The characterisation test that does catch it understates the surface
@@ -730,7 +749,12 @@ Ordering:
    (not `output.py` — `output.py` imports that module, so the reverse would be a cycle) and
    is re-exported from `app.pipeline`. All three production copies now resolve to it, and
    `fastapi_run.py`'s `64 * 1024` defers to `run_manager.LOG_CHUNK_MAX_BYTES`.
-6. ⬜ **Re-run CP-1** against the repaired suite. Slice 3 unblocks on a clean verdict;
+6. ✅ **`tests/integration/test_pipeline_offline.py`** — 43 tests, closing **S6** and the
+   "already flagged" 22% gap in one file. Mutation-verified (29 mutations, whole suite per
+   mutation, no unexpected reds, no-op control clean). Found backlog **A14**, **A15**,
+   **A16** in `app/`, all pinned and none fixed — and two can't-fail assertions in its own
+   first draft, both fixed and re-verified.
+7. ⬜ **Re-run CP-1** against the repaired suite. Slice 3 unblocks on a clean verdict;
    Slice 2 resumes then too, since its verification is graded against this oracle.
 7. **S1–S6** (minus CP1-7, promoted) before Slice 5.
 8. **L1–L4** before Slice 7.
