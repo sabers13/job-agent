@@ -176,7 +176,33 @@ Accurate as of the start of the restructure. Update as slices land.
 - Fetching goes through the polite-fetch layer. Never call `httpx`/`requests`/
   Playwright directly from `pipeline/` or `sources/`.
 - Tests live in `tests/`, mirror the package path of what they test, and must not
-  make live network calls. Use fixtures.
+  make live network calls. Use fixtures. This is enforced, not merely asked for:
+  `tests/net_guard.py` installs a session-wide autouse guard that refuses any outbound
+  connection or DNS lookup, and `tests/test_suite_hermeticity.py` §3 asserts the guard
+  is installed and that a refusal swallowed by a broad `except Exception:` still fails
+  the test. Loopback is deliberately allowed; the reasoning is in `net_guard.py`.
+- **`monkeypatch.setattr(..., raising=False)` is forbidden in a stub.** The default is
+  `raising=True` — keep it. `raising=False` converts "this name does not exist" from an
+  `AttributeError` into a freshly created attribute that nothing reads, so the stub
+  binds to nothing, the test exercises the real dependency, and it reports that it
+  stubbed it.
+
+  Measured, not theorised: `monkeypatch.setattr(fr, "search_stepstone_http", …,
+  raising=False)` named an attribute that has never existed on `app.fastapi_run` —
+  `fastapi_run.py:79` imports that function *as* `crawl_http`. The swallowed
+  `AttributeError` is precisely how a live HTTP request to `https://www.stepstone.de/en/`
+  survived inside the gated "offline" suite, on the one route whose only test claimed to
+  stub the adapter. See **CP1-8**.
+
+  The single legitimate use is **deliberately creating** an attribute that is supposed to
+  be absent. Then the creation is the point, so assert it: the test must fail if the
+  attribute starts existing on its own, or if the code under test never reads it. A stub
+  whose whole job is to bind to a real name is never that case.
+
+  Binding to an existing name is necessary but not sufficient — bind to the name the
+  code **calls**. Rebinding a module attribute that FastAPI captured at decoration time
+  (the route handler itself) changes nothing on the request path. That was the second
+  half of the same defect, and it was the half that `raising=True` would not have caught.
 - **No assertion may accept both the success and the failure state.**
   `assert response.status_code in (200, 503)` is not an assertion — it is a comment
   that costs a test run. If both outcomes pass, the test reports "covered" while
