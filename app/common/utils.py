@@ -8,7 +8,7 @@ import re
 import secrets
 import unicodedata
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 try:
     from pydantic import BaseModel
@@ -22,7 +22,7 @@ def slugify(text: str) -> str:
     return re.sub(r"-{2,}", "-", text)
 
 
-def ensure_dir(p: Union[str, Path]) -> None:
+def ensure_dir(p: str | Path) -> None:
     Path(p).mkdir(parents=True, exist_ok=True)
 
 
@@ -42,7 +42,7 @@ def timestamp_iso() -> str:
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
-def atomic_write_text(path: Union[str, Path], text: str, *, encoding: str = "utf-8") -> None:
+def atomic_write_text(path: str | Path, text: str, *, encoding: str = "utf-8") -> None:
     """
     Atomic write: write to a temp file next to the target and os.replace() into place.
     This prevents partial reads of JSON/text under concurrent readers or crashes.
@@ -65,7 +65,7 @@ def atomic_write_text(path: Union[str, Path], text: str, *, encoding: str = "utf
 
 
 def atomic_write_json(
-    path: Union[str, Path],
+    path: str | Path,
     payload: Any,
     *,
     encoding: str = "utf-8",

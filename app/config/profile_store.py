@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 PROFILES_PATH = Path("config/focus_profiles.json")
 
@@ -13,7 +13,7 @@ def _ensure_file_exists() -> None:
         PROFILES_PATH.write_text("{}", encoding="utf-8")
 
 
-def load_profiles() -> Dict[str, Dict[str, Any]]:
+def load_profiles() -> dict[str, dict[str, Any]]:
     """Load all profiles as a dict mapping key -> profile dict."""
     _ensure_file_exists()
     text = PROFILES_PATH.read_text(encoding="utf-8")
@@ -30,7 +30,7 @@ def load_profiles() -> Dict[str, Dict[str, Any]]:
     return data
 
 
-def save_profiles(data: Dict[str, Dict[str, Any]]) -> None:
+def save_profiles(data: dict[str, dict[str, Any]]) -> None:
     """Overwrite the profile file with the given dict."""
     _ensure_file_exists()
     PROFILES_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -40,12 +40,12 @@ def get_profile_keys() -> list[str]:
     return list(load_profiles().keys())
 
 
-def get_profile(key: str) -> Dict[str, Any] | None:
+def get_profile(key: str) -> dict[str, Any] | None:
     profiles = load_profiles()
     return profiles.get(key)
 
 
-def upsert_profile(key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def upsert_profile(key: str, payload: dict[str, Any]) -> dict[str, Any]:
     profiles = load_profiles()
     profiles[key] = payload
     save_profiles(profiles)
@@ -59,7 +59,7 @@ def delete_profile(key: str) -> None:
         save_profiles(profiles)
 
 
-def get_default_profiles_dict() -> Dict[str, Dict[str, Any]]:
+def get_default_profiles_dict() -> dict[str, dict[str, Any]]:
     """
     Return built-in default profiles for seeding new users.
     These are templates only; they are not written to disk here.

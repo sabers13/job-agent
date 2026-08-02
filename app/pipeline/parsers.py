@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import Any, Dict, Optional, List
-from bs4 import BeautifulSoup
+
 import json
 import re
 from html import unescape
+from typing import Any
+
+from bs4 import BeautifulSoup
 
 
 def _first_not_none(*vals):
@@ -13,7 +15,7 @@ def _first_not_none(*vals):
     return None
 
 
-def _as_text(html_str: Optional[str]) -> Optional[str]:
+def _as_text(html_str: str | None) -> str | None:
     if not html_str:
         return None
     # Strip HTML tags conservatively
@@ -22,7 +24,7 @@ def _as_text(html_str: Optional[str]) -> Optional[str]:
     return re.sub(r"\s+", " ", text).strip() if text else None
 
 
-def _normalize_location(job_json: Dict[str, Any]) -> Optional[str]:
+def _normalize_location(job_json: dict[str, Any]) -> str | None:
     loc = job_json.get("jobLocation")
     if isinstance(loc, list) and loc:
         loc = loc[0]
@@ -38,7 +40,7 @@ def _normalize_location(job_json: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _normalize_salary(job_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _normalize_salary(job_json: dict[str, Any]) -> dict[str, Any] | None:
     sal = job_json.get("baseSalary")
     if not isinstance(sal, dict):
         return None
@@ -60,7 +62,7 @@ def _normalize_salary(job_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _pick_jobposting(ld_blocks: List[Any]) -> Optional[Dict[str, Any]]:
+def _pick_jobposting(ld_blocks: list[Any]) -> dict[str, Any] | None:
     # Find object with @type == "JobPosting" (handle lists/nested graphs)
     for block in ld_blocks:
         if isinstance(block, dict):
@@ -80,14 +82,14 @@ def _pick_jobposting(ld_blocks: List[Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def extract_jobposting_from_html(html: str) -> Dict[str, Any]:
+def extract_jobposting_from_html(html: str) -> dict[str, Any]:
     """
     Parse <script type='application/ld+json'>, find a JobPosting object,
     and map to a unified schema. If missing, return minimal Unknown fields.
     """
     soup = BeautifulSoup(html, "lxml")
     scripts = soup.find_all("script", attrs={"type": "application/ld+json"})
-    ld_blocks: List[Any] = []
+    ld_blocks: list[Any] = []
     for s in scripts:
         try:
             # Some sites HTML-escape the JSON

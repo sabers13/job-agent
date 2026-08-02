@@ -1,10 +1,14 @@
 # app/stepstone/search_http.py
 from __future__ import annotations
-import time, re, random, json
-from typing import List, Dict, Optional, Any
-from urllib.parse import urljoin, urlparse, parse_qs, urlencode, urlunparse
+
+import json
 import math
-from datetime import datetime, timezone
+import random
+import re
+import time
+from datetime import UTC, datetime
+from typing import Any
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -32,7 +36,7 @@ def _abs(base: str, href: str) -> str:
     return urljoin(base, href)
 
 
-def _extract_job_links(html: str, base_url: str) -> List[str]:
+def _extract_job_links(html: str, base_url: str) -> list[str]:
     soup = BeautifulSoup(html, "html.parser")
     hrefs = set()
 
@@ -67,7 +71,7 @@ def _with_page(url: str, page: int) -> str:
     return urlunparse((u.scheme, u.netloc, u.path, u.params, new_q, u.fragment))
 
 
-def _extract_posted_label(card: BeautifulSoup) -> Optional[str]:
+def _extract_posted_label(card: BeautifulSoup) -> str | None:
     for selector in ("[data-at='job-item-date']", ".job-item__date", ".job-item__date--desktop"):
         node = card.select_one(selector)
         if node:
@@ -84,13 +88,13 @@ def _extract_posted_label(card: BeautifulSoup) -> Optional[str]:
 def _extract_job_entries(
     html: str,
     base_url: str,
-    include_titles_any: List[str],
-    exclude_titles_any: List[str],
-) -> List[Dict[str, Any]]:
+    include_titles_any: list[str],
+    exclude_titles_any: list[str],
+) -> list[dict[str, Any]]:
     soup = BeautifulSoup(html, "html.parser")
-    entries: List[Dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
     seen_links: set[str] = set()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for card in soup.select("[data-at='job-item'], article"):
         link_el = None
@@ -137,7 +141,7 @@ def _extract_job_entries(
     return entries
 
 
-def _estimate_total_pages(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> Optional[int]:
+def _estimate_total_pages(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> int | None:
     """
     Best-effort extraction of the total number of result pages from the StepStone HTML.
     """
@@ -181,7 +185,7 @@ def _estimate_total_pages(html: str, *, per_page: int = PER_PAGE_DEFAULT) -> Opt
     return None
 
 
-def _find_total_in_jsonld(node: Any) -> Optional[int]:
+def _find_total_in_jsonld(node: Any) -> int | None:
     keys = ("numberOfItems", "totalJobPosting", "totalJobPostings", "totalItems", "totalResults")
     if isinstance(node, dict):
         for key in keys:
@@ -207,14 +211,14 @@ def _find_total_in_jsonld(node: Any) -> Optional[int]:
 
 def search_stepstone(
     seed_url: str,
-    pages: Optional[int] = None,
+    pages: int | None = None,
     delay_sec: float = 1.2,
-    include_titles_any: Optional[List[str]] = None,
-    exclude_titles_any: Optional[List[str]] = None,
-    max_jobs: Optional[int] = None,
+    include_titles_any: list[str] | None = None,
+    exclude_titles_any: list[str] | None = None,
+    max_jobs: int | None = None,
     max_pages_guard: int = 80,
-    stop_urls: Optional[List[str]] = None,
-) -> Dict:
+    stop_urls: list[str] | None = None,
+) -> dict:
     include_titles_any = [t.lower() for t in (include_titles_any or [])]
     exclude_titles_any = [t.lower() for t in (exclude_titles_any or [])]
     # stop_set logic disabled; keep placeholder to show intentional no-op
@@ -225,11 +229,11 @@ def search_stepstone(
     }
     client = httpx.Client(timeout=30, follow_redirects=True, headers=headers)
 
-    all_jobs: List[Dict[str, Any]] = []
+    all_jobs: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
-    page_hits: List[Dict] = []
+    page_hits: list[dict] = []
 
-    target_pages: Optional[int] = pages if pages and pages > 0 else None
+    target_pages: int | None = pages if pages and pages > 0 else None
     guard = max(1, max_pages_guard or 80)
     per_page = PER_PAGE_DEFAULT
     estimated_pages = None
@@ -289,7 +293,7 @@ def search_stepstone(
     finally:
         client.close()
 
-    serialized_jobs: List[Dict[str, Any]] = []
+    serialized_jobs: list[dict[str, Any]] = []
     for job in all_jobs:
         dt = job.get("posted_dt")
         serialized_jobs.append(

@@ -1,10 +1,10 @@
 from .http_client import fetch
 from .polite_fetch import (
-    fetch_job_html,
-    RobotsDisallowedError,
     AccessDeniedError,
     FetchError,
+    RobotsDisallowedError,
     TransientFetchError,
+    fetch_job_html,
 )
 
 __all__ = [

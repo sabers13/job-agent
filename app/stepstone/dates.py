@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-
+from datetime import UTC, datetime, timedelta
 
 RELATIVE_RE = re.compile(r"vor\s+(\d+)\s+([a-zäöüß]+)", re.IGNORECASE)
 ABSOLUTE_DATE_RE = re.compile(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})", re.IGNORECASE)
@@ -30,10 +28,10 @@ UNIT_TO_DELTA = {
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def parse_iso8601_utc(value: Optional[str]) -> Optional[datetime]:
+def parse_iso8601_utc(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
@@ -42,14 +40,14 @@ def parse_iso8601_utc(value: Optional[str]) -> Optional[datetime]:
             txt = txt[:-1] + "+00:00"
         dt = datetime.fromisoformat(txt)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
     except Exception:
         return None
 
 
 def isoformat_utc(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return dt.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _apply_months(now: datetime, months: int) -> datetime:
@@ -75,16 +73,16 @@ def _apply_years(now: datetime, years: int) -> datetime:
 
 def _days_in_month(year: int, month: int) -> int:
     if month == 12:
-        next_month = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+        next_month = datetime(year + 1, 1, 1, tzinfo=UTC)
     else:
-        next_month = datetime(year, month + 1, 1, tzinfo=timezone.utc)
-    this_month = datetime(year, month, 1, tzinfo=timezone.utc)
+        next_month = datetime(year, month + 1, 1, tzinfo=UTC)
+    this_month = datetime(year, month, 1, tzinfo=UTC)
     return (next_month - this_month).days
 
 
 def parse_stepstone_listing_date(
-    label: Optional[str], *, now: Optional[datetime] = None
-) -> Optional[datetime]:
+    label: str | None, *, now: datetime | None = None
+) -> datetime | None:
     if not label:
         return None
     reference = now or _now_utc()
@@ -132,7 +130,7 @@ def parse_stepstone_listing_date(
         if year_i < 100:
             year_i += 2000
         try:
-            return datetime(year_i, month_i, day_i, tzinfo=timezone.utc)
+            return datetime(year_i, month_i, day_i, tzinfo=UTC)
         except ValueError:
             return None
 

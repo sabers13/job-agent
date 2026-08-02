@@ -5,10 +5,10 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from app.config.settings import settings
 from app.pipeline.potential_bucket import ACCEPT_THRESHOLD, decide_potential
+
 from ..common.utils import ensure_dir, slugify, timestamp_iso, to_jsonable
 
 
@@ -31,11 +31,11 @@ def _safe_folder(name: str) -> str:
 
 def write_bundle(
     root: str,
-    job: Dict,
-    assets: Dict,
-    scoring: Dict | None = None,
+    job: dict,
+    assets: dict,
+    scoring: dict | None = None,
     seed_slug: str | None = None,
-    enrichment_meta: Dict | None = None,
+    enrichment_meta: dict | None = None,
     category: str | None = None,
 ) -> str:
     company = job.get("company") or "unknown"
@@ -106,9 +106,9 @@ def write_bundle(
 
 
 def write_summary(
-    reports: List[Dict],
-    out_dir: Optional[str] = None,
-    metrics: Optional[Dict] = None,
+    reports: list[dict],
+    out_dir: str | None = None,
+    metrics: dict | None = None,
 ) -> str:
     lines = ["# Job Search Summary", ""]
     if metrics:

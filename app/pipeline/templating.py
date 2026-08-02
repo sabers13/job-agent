@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -15,7 +15,7 @@ def _env() -> Environment:
     )
 
 
-def _language_summary(job: Dict[str, Any]) -> Dict[str, Any]:
+def _language_summary(job: dict[str, Any]) -> dict[str, Any]:
     items = job.get("language_requirements") or []
     de = next((x for x in items if (x.get("language", "").lower().startswith("ger"))), {})
     en = next((x for x in items if (x.get("language", "").lower().startswith("eng"))), {})
@@ -31,7 +31,7 @@ def _language_summary(job: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def generate_bundle(job: Dict, scoring: Dict | None = None) -> Dict[str, str]:
+def generate_bundle(job: dict, scoring: dict | None = None) -> dict[str, str]:
     """
     Build report-only bundle assets. Downstream writer will persist REPORT.md and metadata.json.
     """
@@ -51,7 +51,7 @@ def generate_bundle(job: Dict, scoring: Dict | None = None) -> Dict[str, str]:
         },
     }
 
-    outputs: Dict[str, str] = {}
+    outputs: dict[str, str] = {}
     report_template = TEMPLATES_DIR / "report_md.j2"
     if report_template.exists():
         outputs["REPORT.md"] = env.get_template("report_md.j2").render(**ctx, score_val=score_val)

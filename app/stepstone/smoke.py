@@ -1,9 +1,10 @@
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 from bs4 import BeautifulSoup
 
 from app.config.settings import settings
+
 from ..fetching.http_client import fetch
 
 HEADERS = {
@@ -14,7 +15,7 @@ HEADERS = {
 }
 
 
-async def search_stepstone_http(query: Dict[str, Any]) -> Dict[str, Any]:
+async def search_stepstone_http(query: dict[str, Any]) -> dict[str, Any]:
     """
     Minimal HTTP smoke check: GET the URL and parse <title>.
     """
@@ -36,7 +37,7 @@ async def search_stepstone_http(query: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-async def search_stepstone_pw(query: Dict[str, Any]) -> Dict[str, Any]:
+async def search_stepstone_pw(query: dict[str, Any]) -> dict[str, Any]:
     """
     Minimal Playwright smoke check: open the URL and return page title/final URL.
     """
@@ -66,8 +67,8 @@ async def search_stepstone_pw(query: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def search_stepstone(
-    query: Dict[str, Any], backend_override: str | None = None
-) -> Dict[str, Any]:
+    query: dict[str, Any], backend_override: str | None = None
+) -> dict[str, Any]:
     """
     Choose backend for smoke check:
       - backend_override in {"pw","http"} takes precedence

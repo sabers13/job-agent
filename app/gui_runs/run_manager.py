@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.common.utils import atomic_write_json
 from app.config.settings import settings
@@ -16,7 +16,7 @@ LOG_CHUNK_MAX_BYTES = 64 * 1024  # 64KB hard cap per request
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def run_output_root(base: Path, user_id: str, profile_key: str, run_id: str) -> Path:
@@ -38,7 +38,7 @@ def _write_run_index(run_id: str, user_id: str, profile_key: str, output_root: P
     atomic_write_json(_run_index_path(run_id), payload)
 
 
-def _load_run_index(run_id: str) -> Optional[Dict[str, Any]]:
+def _load_run_index(run_id: str) -> dict[str, Any] | None:
     path = _run_index_path(run_id)
     if not path.exists():
         return None
@@ -50,7 +50,7 @@ def _load_run_index(run_id: str) -> Optional[Dict[str, Any]]:
 
 def create_run_dir(user_id: str, profile_key: str) -> str:
     # Collision-proof: allow multiple runs per second across users/profiles.
-    base = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    base = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
     for _ in range(10):
         run_id = f"{base}-{secrets.token_hex(4)}"  # 8 hex chars
         run_dir = run_output_root(OUTPUTS_BASE, user_id, profile_key, run_id)
@@ -72,7 +72,7 @@ def get_run_dir(user_id: str, profile_key: str, run_id: str) -> Path:
     return run_output_root(OUTPUTS_BASE, user_id, profile_key, run_id)
 
 
-def get_run_dir_from_index(run_id: str) -> Optional[Path]:
+def get_run_dir_from_index(run_id: str) -> Path | None:
     idx = _load_run_index(run_id)
     if idx:
         output_root = idx.get("output_root")
@@ -102,7 +102,7 @@ def log_path(run_id: str) -> Path:
     return LEGACY_OUTPUT_ROOT / run_id / "run.log"
 
 
-def write_status(run_id: str, data: Dict[str, Any]) -> None:
+def write_status(run_id: str, data: dict[str, Any]) -> None:
     user_id = data.get("user_id")
     profile_key = data.get("profile_key")
     if user_id and profile_key:
@@ -113,7 +113,7 @@ def write_status(run_id: str, data: Dict[str, Any]) -> None:
     atomic_write_json(sp, data)
 
 
-def load_status(run_id: str) -> Optional[Dict[str, Any]]:
+def load_status(run_id: str) -> dict[str, Any] | None:
     sp = status_path(run_id)
     if sp.exists():
         try:
@@ -133,7 +133,7 @@ def latest_path(user_id: str, profile_key: str) -> Path:
     return OUTPUTS_BASE / user_id / profile_key / "latest.json"
 
 
-def write_latest(user_id: str, profile_key: str, data: Dict[str, Any]) -> None:
+def write_latest(user_id: str, profile_key: str, data: dict[str, Any]) -> None:
     path = latest_path(user_id, profile_key)
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(path, data)

@@ -110,6 +110,6 @@
   "pytest_failed": 0,
   "pytest_passed": 298,
   "pyright_errors": 32,
-  "ruff_findings": 747,
+  "ruff_findings": 31,
   "importlinter_broken": 2
 }

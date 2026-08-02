@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
@@ -23,34 +23,34 @@ class JobDetailsRequest(_Base):
     backend: str = "auto"
     enrich: bool = True
     score: bool = True
-    profile_key: Optional[str] = None
+    profile_key: str | None = None
     use_llm_scoring: bool = True
     apply_blocker_cap: bool = True
-    cutoff_iso: Optional[str] = None
+    cutoff_iso: str | None = None
     use_cache: bool = True
 
 
 class SearchStepstoneListRequest(_Base):
     seed_url: HttpUrl
     pages: int = 2
-    max_pages: Optional[int] = 80
+    max_pages: int | None = 80
     delay_sec: float = 1.2
-    include_titles_any: Optional[List[str]] = None
-    exclude_titles_any: Optional[List[str]] = None
-    max_jobs: Optional[int] = None
+    include_titles_any: list[str] | None = None
+    exclude_titles_any: list[str] | None = None
+    max_jobs: int | None = None
     use_playwright: bool = False
-    stop_urls: Optional[List[HttpUrl]] = None
-    list_cutoff_iso: Optional[str] = None
+    stop_urls: list[HttpUrl] | None = None
+    list_cutoff_iso: str | None = None
 
 
 class BundleRequest(_Base):
-    job: Dict[str, Any]
-    scoring: Optional[Dict[str, Any]] = None
+    job: dict[str, Any]
+    scoring: dict[str, Any] | None = None
     output_root: str = "output"
 
 
 class AggregateReportRequest(_Base):
-    reports: List[Dict[str, Any]]
+    reports: list[dict[str, Any]]
     output_root: str = "output"
 
 
@@ -58,26 +58,26 @@ class AggregateReportRequest(_Base):
 
 
 class FetchMeta(_Base):
-    backend: Optional[str] = None
-    attempts: Optional[Any] = None
+    backend: str | None = None
+    attempts: Any | None = None
 
 
 class ScoringResult(_Base):
     score: int
-    version: Optional[str] = None
-    heuristic_score: Optional[float] = None
-    heuristic_version: Optional[str] = None
-    alpha: Optional[float] = None
-    components: Optional[Dict[str, Any]] = None
-    reasons: Optional[List[str]] = None
-    llm_enabled: Optional[bool] = None
-    blocker_cap_enabled: Optional[bool] = None
-    llm_ok: Optional[bool] = None
-    llm_score: Optional[float] = None
-    llm_scoring_version: Optional[str] = None
-    critical_blockers: Optional[List[str]] = None
-    llm_raw_excerpt: Optional[str] = None
-    llm_debug: Optional[str] = None
+    version: str | None = None
+    heuristic_score: float | None = None
+    heuristic_version: str | None = None
+    alpha: float | None = None
+    components: dict[str, Any] | None = None
+    reasons: list[str] | None = None
+    llm_enabled: bool | None = None
+    blocker_cap_enabled: bool | None = None
+    llm_ok: bool | None = None
+    llm_score: float | None = None
+    llm_scoring_version: str | None = None
+    critical_blockers: list[str] | None = None
+    llm_raw_excerpt: str | None = None
+    llm_debug: str | None = None
 
 
 class RunSingleRequest(_Base):
@@ -87,7 +87,7 @@ class RunSingleRequest(_Base):
     enrich: bool = True
     use_llm_scoring: bool = True
     apply_blocker_cap: bool = True
-    cutoff_iso: Optional[str] = None
+    cutoff_iso: str | None = None
 
 
 class RunSingleResponse(_Base):
@@ -102,19 +102,19 @@ class UnifiedJobPostingOut(UnifiedJobPosting):
 
 class JobDetailsResponse(_Base):
     ok: bool
-    backend: Optional[str] = None
+    backend: str | None = None
     job: UnifiedJobPostingOut
-    scoring: Optional[ScoringResult] = None
+    scoring: ScoringResult | None = None
     fetch_meta: FetchMeta
-    cutoff_iso: Optional[str] = None
+    cutoff_iso: str | None = None
     stale: bool
-    enrichment_meta: Optional[Dict[str, Any]] = None
+    enrichment_meta: dict[str, Any] | None = None
 
 
 class BundleResponse(_Base):
     ok: bool
     output_dir: str
-    files: List[str]
+    files: list[str]
 
 
 class AggregateReportResponse(_Base):
@@ -132,7 +132,7 @@ class ResumeUploadResponse(_Base):
 class ResumeListItem(_Base):
     id: str
     filename: str
-    created_at: Optional[str] = None
+    created_at: str | None = None
     is_active: bool
 
 
@@ -142,27 +142,27 @@ class ResumeDetailResponse(_Base):
     mime_type: str
     sha256: str
     storage_path: str
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None
     is_active: bool
-    parsed_json: Optional[Any] = None
-    text_excerpt: Optional[str] = None
+    parsed_json: Any | None = None
+    text_excerpt: str | None = None
 
 
 class JobListItem(_Base):
     url: str
-    posted_iso: Optional[str] = None
-    title: Optional[str] = None
-    company: Optional[str] = None
-    location: Optional[str] = None
+    posted_iso: str | None = None
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
 
 
 class SearchStepstoneListResponse(_Base):
     ok: bool = True
-    urls: List[str] = []
-    jobs: List[JobListItem] = []
+    urls: list[str] = []
+    jobs: list[JobListItem] = []
     count: int = 0
-    list_cutoff_iso: Optional[str] = None
+    list_cutoff_iso: str | None = None
 
 
 # --- Auth -----------------------------------------------------------------

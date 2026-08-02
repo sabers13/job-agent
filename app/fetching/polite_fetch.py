@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import random
 import time
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
 import urllib.robotparser
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from loguru import logger
@@ -31,7 +31,7 @@ FAILURE_BACKOFF = float(settings.fetch_failure_backoff_sec)
 PLAYWRIGHT_WAIT_UNTIL = settings.playwright_wait_until
 PLAYWRIGHT_TIMEOUT_MS = int(settings.playwright_timeout_ms)
 
-ACCESS_DENIED_MARKERS: Tuple[str, ...] = tuple(
+ACCESS_DENIED_MARKERS: tuple[str, ...] = tuple(
     x.strip().lower() for x in settings.fetch_access_denied_markers
 )
 
@@ -43,9 +43,9 @@ class FetchError(Exception):
         self,
         message: str,
         *,
-        backend: Optional[str] = None,
-        status: Optional[int] = None,
-        data: Optional[Dict[str, Any]] = None,
+        backend: str | None = None,
+        status: int | None = None,
+        data: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.backend = backend
@@ -67,7 +67,7 @@ class TransientFetchError(FetchError):
 
 @dataclass
 class RobotsEntry:
-    parser: Optional[urllib.robotparser.RobotFileParser]
+    parser: urllib.robotparser.RobotFileParser | None
     fetched_at: float
 
 
@@ -78,9 +78,9 @@ class DomainState:
     consecutive_failures: int = 0
 
 
-ROBOTS_CACHE: Dict[str, RobotsEntry] = {}
-ROBOTS_LOCKS: Dict[str, asyncio.Lock] = {}
-DOMAIN_STATE: Dict[str, DomainState] = {}
+ROBOTS_CACHE: dict[str, RobotsEntry] = {}
+ROBOTS_LOCKS: dict[str, asyncio.Lock] = {}
+DOMAIN_STATE: dict[str, DomainState] = {}
 STATE_INIT_LOCK = asyncio.Lock()
 
 
@@ -108,7 +108,7 @@ async def _get_robots_lock(domain: str) -> asyncio.Lock:
     return lock
 
 
-async def _fetch_robots(url: str, user_agent: str) -> Optional[urllib.robotparser.RobotFileParser]:
+async def _fetch_robots(url: str, user_agent: str) -> urllib.robotparser.RobotFileParser | None:
     parsed = urlparse(url)
     scheme = parsed.scheme or "https"
     domain = parsed.netloc
@@ -136,7 +136,7 @@ async def _fetch_robots(url: str, user_agent: str) -> Optional[urllib.robotparse
         return None
 
 
-async def _robots_parser(url: str, user_agent: str) -> Optional[urllib.robotparser.RobotFileParser]:
+async def _robots_parser(url: str, user_agent: str) -> urllib.robotparser.RobotFileParser | None:
     parsed = urlparse(url)
     domain = parsed.netloc
     entry = ROBOTS_CACHE.get(domain)
@@ -212,7 +212,7 @@ async def _http_attempt(
     domain: str,
     user_agent: str,
     attempt_index: int,
-) -> Tuple[str, Dict[str, Any]]:
+) -> tuple[str, dict[str, Any]]:
     await _respect_rate_limit(domain)
     headers = {
         "User-Agent": user_agent,
@@ -322,10 +322,11 @@ async def _playwright_attempt(
     domain: str,
     user_agent: str,
     attempt_index: int,
-) -> Tuple[str, Dict[str, Any]]:
+) -> tuple[str, dict[str, Any]]:
     await _respect_rate_limit(domain)
     start = time.perf_counter()
-    from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+    from playwright.async_api import async_playwright
 
     browser = None
     context = None
@@ -413,7 +414,7 @@ async def _playwright_attempt(
             pass
 
 
-def _decide_backend_order(preferred: Optional[str]) -> List[str]:
+def _decide_backend_order(preferred: str | None) -> list[str]:
     if preferred == "http":
         return ["http"]
     if preferred == "pw":
@@ -432,8 +433,8 @@ def _http_retry_backoff(attempt: int) -> float:
 async def fetch_job_html(
     url: str,
     *,
-    preferred_backend: Optional[str] = None,
-) -> Tuple[str, Dict[str, Any]]:
+    preferred_backend: str | None = None,
+) -> tuple[str, dict[str, Any]]:
     """
     Fetch HTML for the provided job URL with polite rate limiting, robots.txt compliance,
     and Access Denied mitigation. Returns a tuple (html, telemetry).
@@ -448,14 +449,14 @@ async def fetch_job_html(
     await _ensure_robots_allowed(url, user_agent)
 
     backend_order = _decide_backend_order(preferred_backend)
-    telemetry: Dict[str, Any] = {
+    telemetry: dict[str, Any] = {
         "url": url,
         "domain": domain,
         "preferred_backend": preferred_backend or "auto",
         "attempts": [],
     }
 
-    last_error: Optional[FetchError] = None
+    last_error: FetchError | None = None
 
     for backend in backend_order:
         if backend == "http":

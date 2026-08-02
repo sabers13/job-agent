@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
-def extract_text_from_file(path: Path, mime_type: Optional[str] = None) -> str:
+def extract_text_from_file(path: Path, mime_type: str | None = None) -> str:
     suffix = path.suffix.lower()
     if mime_type == "text/plain" or suffix == ".txt":
         return path.read_text(encoding="utf-8", errors="replace")
@@ -30,17 +29,17 @@ def extract_text_from_file(path: Path, mime_type: Optional[str] = None) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def _extract_email(text: str) -> Optional[str]:
+def _extract_email(text: str) -> str | None:
     match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", text, re.IGNORECASE)
     return match.group(0) if match else None
 
 
-def _extract_phone(text: str) -> Optional[str]:
+def _extract_phone(text: str) -> str | None:
     match = re.search(r"\+?\d[\d\s().-]{7,}\d", text)
     return match.group(0).strip() if match else None
 
 
-def _extract_links(text: str) -> List[str]:
+def _extract_links(text: str) -> list[str]:
     raw = re.findall(r"https?://[^\s)]+", text)
     seen = set()
     links = []
@@ -52,7 +51,7 @@ def _extract_links(text: str) -> List[str]:
     return links
 
 
-def _split_sections(text: str) -> Dict[str, List[str]]:
+def _split_sections(text: str) -> dict[str, list[str]]:
     headings = {
         "summary": "summary",
         "profile": "summary",
@@ -64,7 +63,7 @@ def _split_sections(text: str) -> Dict[str, List[str]]:
         "certifications": "certifications",
         "certification": "certifications",
     }
-    sections: Dict[str, List[str]] = {}
+    sections: dict[str, list[str]] = {}
     current = "summary"
     sections.setdefault(current, [])
     for line in text.splitlines():
@@ -86,7 +85,7 @@ def _split_sections(text: str) -> Dict[str, List[str]]:
     return sections
 
 
-def _categorize_skills(items: List[str]) -> Dict[str, List[str]]:
+def _categorize_skills(items: list[str]) -> dict[str, list[str]]:
     buckets = {"languages": [], "frameworks": [], "tools": [], "cloud": []}
     language_keys = {"python", "sql", "r", "java", "scala", "javascript", "typescript", "c#", "c++"}
     framework_keys = {"fastapi", "django", "flask", "spark", "pyspark", "pandas", "numpy"}
@@ -111,8 +110,8 @@ def _categorize_skills(items: List[str]) -> Dict[str, List[str]]:
     return buckets
 
 
-def _collect_bullets(lines: List[str]) -> List[str]:
-    bullets: List[str] = []
+def _collect_bullets(lines: list[str]) -> list[str]:
+    bullets: list[str] = []
     for line in lines:
         cleaned = line.lstrip("-•* ").strip()
         if cleaned:
@@ -120,7 +119,7 @@ def _collect_bullets(lines: List[str]) -> List[str]:
     return bullets
 
 
-def parse_resume_text(text: str) -> Dict[str, Any]:
+def parse_resume_text(text: str) -> dict[str, Any]:
     text = text or ""
     sections = _split_sections(text)
     skills_raw = []
@@ -130,7 +129,7 @@ def parse_resume_text(text: str) -> Dict[str, Any]:
                 skills_raw.append(part.strip())
     skills = _categorize_skills(skills_raw)
 
-    parsed: Dict[str, Any] = {
+    parsed: dict[str, Any] = {
         "name": None,
         "title": None,
         "location": None,
@@ -180,7 +179,7 @@ def parse_resume_text(text: str) -> Dict[str, Any]:
     return parsed
 
 
-def parse_resume_file(path: Path, mime_type: Optional[str] = None) -> Dict[str, Any]:
+def parse_resume_file(path: Path, mime_type: str | None = None) -> dict[str, Any]:
     text = extract_text_from_file(path, mime_type=mime_type)
     parsed = parse_resume_text(text)
     return {"text": text, "parsed": parsed}
