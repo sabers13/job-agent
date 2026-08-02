@@ -1,8 +1,25 @@
 # CP-1 — Oracle review
 
-_Reviewed 2026-08-01, against `8b0116e` (Slice 1 green: 208 passed, 0 failed, 0 skipped)._
+_First pass 2026-08-01, against `8b0116e` (Slice 1 green: 208 passed, 0 failed, 0 skipped)._
+_Second pass 2026-08-02, against `db3b908` (291 passed, 0 failed, 1 deselected)._
 
-**Verdict: not trustworthy as-is.** Fix list below.
+**First-pass verdict: not trustworthy as-is.** Fix list below (CP1-1 … CP1-7, all closed).
+
+**Second-pass verdict: trustworthy as an oracle, with one blocking exception — CP1-8.**
+**CP1-8 was closed on 2026-08-02** (test-side only, 291 → 298 passing), so **Slice 3 is no
+longer blocked by it** — CP‑3 and the liveness audit still precede it, and S1's remaining
+seven are still scheduled ahead of it. Slice 2 resumes. See
+[§Second pass](#second-pass--2026-08-02) at the foot of this file for what was re-checked,
+and the three new **S** items it produced alongside.
+
+> **Amended 2026-08-02, after the verdict was first given.** The initial second-pass
+> verdict was a clean "trustworthy", with S1 merely *scheduled* ahead of Slice 3 on a
+> documentation-consistency argument. That was wrong, and the argument that corrected it
+> was structural: **Slice 3 is the slice that moves `app/stepstone/`, and the only test
+> covering `/search_stepstone` accepts the failure state of that relocation.** Following
+> that up showed the accept set is not the whole problem — the test's stubs do not bind,
+> so it reaches the live network. Promoted to **CP1-8** on the CP1-7 precedent: "wide
+> accept set" and "wide accept set that hid a real defect" are not the same severity.
 
 > **Numbering.** The blocking items are **CP1-1 … CP1-7**. They were originally written as
 > a bare `B1`–`B7`, which collided with `backlog.md` bucket **B** — two unrelated sequences
@@ -36,6 +53,23 @@ that claims to pin it:
 Severities: **B** blocks Slice 3. **S** should land before Slice 5 (the first slice that
 moves run-lifecycle code). **L** is hardening — latent today, cheap now, expensive after
 the routers move.
+
+> **Amended 2026-08-02 (second pass).** One instance of S1 is promoted to **CP1-8** and
+> blocks Slice 3; the **remaining seven move to _before Slice 3_** as well.
+>
+> The promotion is positional, not stylistic. **Slice 3 moves `app/stepstone/` into
+> `sources/`, and the one test covering `/search_stepstone` accepts `500` — the exact
+> failure state that relocation produces at runtime.** The hole sits precisely where the
+> next structural change lands. Everything else on the S list can wait for Slice 5; this
+> cannot, because Slice 5 is after the damage.
+>
+> The remaining seven move with it for a weaker but real reason: the CP1-7 remediation
+> wrote the general lesson into `AGENTS.md` §Conventions ("No assertion may accept both
+> the success and the failure state… Never write an accept set containing 500") **without
+> fixing the eight instances**. A conventions file that a cold Codex run reads before
+> every task, carrying a live counterexample in the same repo, teaches the
+> counterexample. See [§CP1-8](#cp1-8--the-stepstone-route-test-stubs-nothing-and-reaches-the-live-network)
+> and [§S1](#s1--eight-assertions-that-cannot-fail).
 
 ---
 
@@ -466,9 +500,133 @@ failure mode, and it is the mode that produced this review's verdict.
 
 ---
 
+## CP1-8 — The StepStone route test stubs nothing and reaches the live network
+
+_Found at the second pass, 2026-08-02. Promoted out of **S1** on the CP1-7 precedent: it
+is not one more wide accept set, it is a wide accept set concealing a live external
+connection._
+
+> ✅ **CLOSED 2026-08-02.** Both prescribed changes landed, plus the network guard. The
+> analysis below stands as written. Three things are worth carrying forward that the fix
+> discovered rather than confirmed:
+>
+> 1. **The guard was installed first, against the unmodified suite** — deliberately, to
+>    measure the leak rather than assume CP‑1 had enumerated it. It reddened **exactly
+>    two** tests, both named here. The blast radius was as described.
+> 2. **Raising is not sufficient; the refusal has to be recorded.** asyncio resolves DNS
+>    on an executor thread, so this route's leak raises where nothing is listening, and
+>    the handler's `except Exception` absorbs whatever does reach it. `conftest` checks
+>    the guard's record at the end of each phase instead — and in the **call** phase, so a
+>    leaking test moves `pytest_passed` rather than sitting beside it as a teardown error.
+> 3. **`BaseException` was tried and rejected.** It defeats `except Exception:` and it
+>    also kills the anyio portal `TestClient` runs on, turning each leak into a red test
+>    plus `RuntimeError: This portal is not running`. Reasoning in `tests/net_guard.py`.
+>
+> The generalisable rule is now in `AGENTS.md` §Conventions: `raising=False` is forbidden
+> in a stub unless it is deliberately creating an attribute, and then the creation must be
+> asserted.
+
+`tests/contracts/test_health_and_pages_api.py:151`
+
+```python
+def test_search_stepstone_returns_the_adapter_result(client_unauthed, monkeypatch) -> None:
+    import app.fastapi_run as fr
+
+    monkeypatch.setattr(fr, "search_stepstone_http", lambda *a, **k: {...}, raising=False)
+    monkeypatch.setattr(fr, "search_stepstone",      lambda *a, **k: {...}, raising=False)
+
+    response = client_unauthed.get("/search_stepstone", params={"what": "data analyst"})
+
+    assert response.status_code in (200, 422, 500), response.status_code
+```
+
+**Neither monkeypatch binds to anything the handler calls.** Measured:
+
+| Name patched | What it actually is |
+| --- | --- |
+| `fr.search_stepstone_http` | **Does not exist.** `fastapi_run.py:79` imports it *as* `crawl_http`. `raising=False` swallows the `AttributeError` and creates a fresh attribute nothing reads. |
+| `fr.search_stepstone` | The **route handler itself** (`async def search_stepstone`, line 385). FastAPI captured the function object at decoration time, so rebinding the module attribute changes nothing. |
+| `fr.ss_search` — the actual callee | **Not patched.** `fastapi_run.py:81`: `from .stepstone.smoke import search_stepstone as ss_search`. |
+
+So the test exercises the real adapter. Instrumented at `app.fetching.http_client.fetch`,
+reproducing the test's patches exactly:
+
+```
+status: 200
+outbound fetch calls: 1  ['https://www.stepstone.de/en/']
+```
+
+**A live HTTP request to stepstone.de, from inside the gated suite.** `conftest.py`'s
+opening docstring says "Offline and deterministic. No live network, no DB container, no
+Playwright, no LLM." `tests/test_suite_hermeticity.py` — the file written to make that
+claim executable — asserts over environment variables, the database URL and the settings
+flags. **It has no network assertion at all.**
+
+The accept set exists to accommodate this. The handler wraps everything in
+`except Exception: raise HTTPException(500)` (`fastapi_run.py:397-399`), so:
+
+- **with** network egress, the fetch succeeds and the route returns `200`;
+- **without** it, the fetch raises and the route returns `500`.
+
+`in (200, 422, 500)` admits both. The test therefore passes identically whether or not the
+machine can reach the internet — which is the same machine-dependent, result-invariant
+shape as CP1-7, one layer out. `test_public_routes_do_not_401` hits the same route through
+`sample_path` and asserts only `!= 401`, so it makes the request too.
+
+**Why this blocks Slice 3 specifically.** Slice 3 moves `app/stepstone/` into `sources/`
+behind an adapter interface, and backlog **D3** makes `stepstone/smoke.py` — the module
+`ss_search` resolves to — a deletion candidate at CP-3. The route's only test accepts the
+runtime failure state of exactly that work:
+
+- A module-scope `ImportError` is the *benign* case: `fastapi_run.py:79-81` imports at
+  module level, so a broken import fails collection loudly. That one is caught by accident.
+- Everything else is not. A shim that resolves but returns a different shape, a changed
+  signature, D3's deletion forcing a repoint at `search_http`/`search_playwright` — each
+  lands in the handler's broad `except Exception` and becomes a `500` this test accepts.
+
+**Fix.** Two changes, both small:
+
+1. **Patch the name the handler calls.** `monkeypatch.setattr(fr, "ss_search", ...)`, with
+   `raising=True` — the default — so the patch fails loudly when Slice 3 renames or
+   relocates the symbol. `raising=False` is what let this rot silently; it should not
+   appear in a stub whose whole job is to bind to a real name.
+2. **Assert one code, and assert the body.** With the adapter genuinely stubbed the
+   response is determinable: `== 200` and `response.json() == {"results": [], "count": 0}`.
+   The test's name promises "returns the adapter result"; that is the assertion that
+   delivers it.
+
+Then extend `tests/test_suite_hermeticity.py` with a network guard — a session-scoped
+`socket.socket.connect` block, or an autouse fixture failing on outbound connections — so
+the next inert stub is caught by the suite rather than by a reviewer. That last part is
+the CP1-7 lesson applied one layer out: the environment leak was fixed for the database
+and left open for the network.
+
+---
+
 ## Should fix
 
 ### S1 — Eight assertions that cannot fail
+
+> ⚠️ **Amended 2026-08-02 by the second pass. One of the eight is now
+> [CP1-8](#cp1-8--the-stepstone-route-test-stubs-nothing-and-reaches-the-live-network) and
+> blocks Slice 3; the remaining seven move to _before Slice 3_ too.**
+>
+> The `search_stepstone` entry was the worst of the eight and turned out not to belong on
+> this list at all — its stubs do not bind, so it reaches the live network and the accept
+> set exists to absorb the difference between a machine that has egress and one that does
+> not. That is CP1-7's shape, so it takes CP1-7's severity.
+>
+> The other seven move on a weaker argument: not that the tests got worse, but that
+> `AGENTS.md` got stronger while they stayed the same. The CP1-7 remediation wrote the
+> general rule into §Conventions and left the eight instances in the gated suite, so the
+> conventions file and the oracle now disagree — in the one document every cold Codex run
+> reads first. Fix them, or the rule is decoration.
+>
+> Measured while re-checking, so the fix does not over-claim: `/health/config` at
+> `test_health_and_pages_api.py:28` is the mildest of the set and **not** vacuous —
+> `health_config()` can return 200, 500 **or** 503 (`fastapi_run.py:209-213`), so
+> `in (200, 503)` does still exclude one outcome. Unlike CP1-7's `/health/db`, which could
+> return only the two codes it accepted.
 
 _`test_health_db_reports_reachability` was one of these. It is now **CP1-7** above._
 
@@ -615,6 +773,106 @@ cheaper form.
 
 ---
 
+### S7 — ADR 0009's soft limit is a decision no test can defend _(new, second pass)_
+
+`read_log_chunk` may exceed `max_bytes`, but **never by more than 3 bytes**. That bound is
+the entire justification for accepting a soft limit at all — ADR 0009 argues
+`LOG_CHUNK_MAX_BYTES` "remains a hard *safety* cap on memory per request. Three bytes of
+slack does not weaken it." Nothing asserts it. Measured:
+
+```python
+# app/gui_runs/run_manager.py, the extend-to-complete-the-character branch
+data += f.read(min(needed, size - read_upto))        # → min(needed + 64, ...)
+```
+
+Chunks then overshoot by 64 bytes instead of 3 and **all 291 tests stay green**.
+
+The ADR anticipated a test here and guarded it in prose — *"Do not 'tighten' this to
+`assert len(chunk) <= max_bytes`. The assertion looks correct and would be reintroducing
+the bug."* That is exactly the shape `CHAT-CHECKPOINTS.md` §Unplanned escalation tells us
+not to leave as prose: *"Gate green, outcome visibly wrong — close it with a new
+executable check, not a note."* The note is right; it is just not executable.
+
+Two related weaknesses in the same file:
+
+- `test_http_honours_the_same_cap_as_the_function` asserts
+  `<= LOG_CHUNK_MAX_BYTES + 3` against an **all-ASCII** body, so the `+ 3` is decorative —
+  the assertion passes identically at `+ 0`. The slack is never exercised where it is
+  asserted.
+- ADR 0009 claims verification "over 300 random mixed-width bodies at every size from 1 to
+  20, plus four malformed inputs." **That verification is not in the suite.** It was
+  reproduced at the second pass and it holds — 400 bodies × sizes 1–20, lossless, always
+  progressing, max overshoot exactly 3; six malformed inputs all drain — but Slice 5 moves
+  this module and inherits none of it.
+
+**Fix.** Port the randomised walk in as a test, assert the bound in both directions (a
+chunk never exceeds `max_bytes + 3`, **and** a chunk containing a wide character at a
+narrow `max_bytes` does exceed `max_bytes`), and put a 4-byte character in
+`MULTIBYTE_LOG_BODY` — its own comment says "an emoji would be 4" and then does not use
+one. The 4-byte path is handled correctly (verified), so this is closing the gap between
+what the fixture names and what it constructs, not chasing a bug.
+
+### S8 — A14 is pinned at one of its two call sites _(new, second pass)_
+
+`test_staleness_raises_when_only_one_side_carries_a_timezone` pins
+`pipeline.py:158`. The same comparison at `pipeline.py:69` — inside the cache
+short-circuit — is documented in backlog **A14** and pinned by nothing.
+
+Its symptom is different, and worse for an oracle: the `TypeError` is swallowed by the
+surrounding broad `except Exception`, logged as `"cache_get failed; continuing without
+cache"` — which is **false**, `cache_get` succeeded — and the call then does a full
+refetch. Measured: 1 fetch to warm the cache, **2** after a cached call carrying a
+`Z`-suffixed cutoff. So a mismatched cutoff turns every cache hit into a network fetch,
+silently, and the log line blames the wrong function. Textbook AGENTS.md §Conventions
+"no silent failure."
+
+Backlog A14 prescribes normalisation in `_parse_iso8601`, which repairs both sites at once
+and makes the single pin sufficient. **Nothing enforces that fix shape.** A `try/except`
+at `:158` would satisfy the pin, go green, and leave the cache path exactly as it is.
+
+**Fix.** One test: warm the cache, call again with an aware `cutoff_iso`, assert the
+fetch count did not increase. It fails today for the right reason and keeps failing until
+the normalisation fix lands.
+
+### S9 — A15's pin has an unguarded premise _(new, second pass)_
+
+`test_the_candidate_german_level_does_not_move_the_heuristic_score` asserts that six CEFR
+levels produce one distinct score. Its meaning depends on the fixture posting actually
+producing a German-language penalty — otherwise "all six are equal" is true for a reason
+that has nothing to do with A15.
+
+Nothing checks that premise. Measured against `tests/unit` + `tests/integration`:
+
+| Mutation to `app/pipeline/scoring.py` | Result |
+| --- | --- |
+| `if penalty_key in _LANG_PENALTY:` → `if False:` (German penalty deleted outright) | **107 passed** |
+| `english_bonus = 10` → `english_bonus = 0` | **107 passed** |
+| customer-facing `penalty -= 5` → `penalty -= 0` | **107 passed** |
+
+The language component is a scored component (`components["language"]`,
+`english_ok`, `german_requirement`) **and** a blocker input, and the oracle contains no
+invariant over it. `TEST-STRATEGY` §5.1 lists eight invariant families; language is not
+one of them. So A15's characterisation would keep passing after the behaviour it
+characterises had been removed.
+
+This is a coverage gap, not a lying assertion — it does not meet the CP-1 bar and does not
+block. It is filed because it is the one pinned-broken test in the suite that can go
+quietly vacuous, and because the same three mutations show the gap is wider than A15.
+
+**Fix.** One relational language invariant in `test_scoring_invariants.py` — a posting
+stating a German requirement scores below an otherwise identical posting that does not —
+and a line in the A15 test asserting the German penalty component is non-zero, so the pin
+cannot outlive its premise.
+
+Minor, same item: A14's `pytest.raises` shape self-documents as a bug pin; A15's **name**
+reads as a specification. The §5 section comment, the docstring and the failure message
+(`"A15 appears fixed — scores now differ"`) all mark it as characterisation, which is
+adequate in place — but the name alone does not survive being grepped out of context.
+Worth a naming convention for §5 pins if one is ever adopted; not worth a rename on its
+own.
+
+---
+
 ## Latent — cheap now, expensive after Slice 7
 
 **L1 — `_iter_routes` yields one method per route object.**
@@ -754,13 +1012,208 @@ Ordering:
    mutation, no unexpected reds, no-op control clean). Found backlog **A14**, **A15**,
    **A16** in `app/`, all pinned and none fixed — and two can't-fail assertions in its own
    first draft, both fixed and re-verified.
-7. ⬜ **Re-run CP-1** against the repaired suite. Slice 3 unblocks on a clean verdict;
-   Slice 2 resumes then too, since its verification is graded against this oracle.
-7. **S1–S6** (minus CP1-7, promoted) before Slice 5.
-8. **L1–L4** before Slice 7.
+7. ✅ **Re-run CP-1** against the repaired suite (2026-08-02, `db3b908`). **Trustworthy,
+   with one blocking exception found on the way out — CP1-8.** Slice 2 resumes now.
+   Details in §Second pass below.
+8. ✅ **CP1-8** — closed 2026-08-02, test-side only, no `app/` change. The stub binds to
+   `ss_search` with `raising=True`; the assertion is `== 200`, the exact body, **and the
+   recorded call args**, so the binding is observable rather than inferred. The network
+   guard (`tests/net_guard.py` + `tests/test_suite_hermeticity.py` §3, 7 tests, 291 → 298)
+   went in **first**, against the unmodified suite, and reddened exactly the two tests
+   named in §CP1-8 — the leak was no wider than this review described.
+
+   Mutation-verified, nine mutations, each reverted and checksummed byte-identical:
+   uninstalling the guard, treating every host as local, unwrapping `getaddrinfo`,
+   deleting `conftest`'s call hook, making the record check never raise, and treating
+   loopback as remote each redden exactly their own tests, with a clean no-op control.
+   Then, against the fix itself, restoring either original binding — `search_stepstone_http`
+   with `raising=False`, or the route handler FastAPI captured at decoration time —
+   reddens both repaired tests. So the fix is what makes them green.
+9. ⬜ **S1's remaining seven** before **Slice 3**.
+10. ⬜ **S2–S5, S7–S9** before Slice 5. (S6 closed.)
+11. ⬜ **L1–L4** before Slice 7.
 
 `ci/baseline.json` moves down, not up: CP1-4's test and CP1-5's sweep add tests, so the pytest
 count rises, which is the ratchet moving in the permitted direction. Banked twice —
 208 → 226 in `d9f4ce7`, then 226 → 248 with the batch above. The other four numbers did not
 move (pyright 32, ruff 747, imports 2, failed 0), which is the expected result: CP1-6
 promoted constants rather than changing behaviour.
+
+---
+
+## Second pass — 2026-08-02
+
+_Against `db3b908`. **Verdict: trustworthy as an oracle, with one blocking exception
+(CP1-8). Slice 2 resumes; Slice 3 waits on a one-test fix.**_
+
+> **How this verdict changed, recorded because the process matters more than the result.**
+> The pass first returned a clean "trustworthy", with S1 merely scheduled ahead of Slice 3
+> on a documentation-consistency argument — `AGENTS.md` forbids a shape the suite still
+> contains. That reasoning was true but weak, and it produced the wrong severity.
+>
+> The correction came from asking a question the review had not: **which slice moves the
+> code each weak test covers?** `test_search_stepstone…` accepts `500`, and Slice 3 is the
+> slice that moves `app/stepstone/`. A wide accept set is a general smell; a wide accept
+> set on the one route whose module is about to be relocated is a hole positioned exactly
+> where the next structural change lands. Following that up is what exposed the inert
+> stubs and the live network call underneath.
+>
+> The generalisable lesson, and the one worth carrying into CP-3 and CP-4: **grade a weak
+> test by what is about to move underneath it, not only by how weak it is.** The S/L split
+> in this review is ordered by severity. It should also have been ordered by proximity to
+> the next slice.
+
+Method note, because it changes what this verdict is worth: the gate was **re-measured,
+not read**. The environment was rebuilt from `requirements.lock.txt` on a clean Python
+3.12 and the suite run from scratch — **291 passed, 0 failed, 1 deselected**, matching
+`ci/baseline.json` exactly. CP1-1/2/3/6/7 were checked at the line each item named rather
+than accepted from the commit log. Where a claim was empirical it was reproduced.
+
+### CP1-4 / ADR 0009 — the landed behaviour is right, including the soft limit
+
+The divergence from the first pass's suggested fix is correct and the ADR's reasoning
+holds. Verified directly against `read_log_chunk`, not by reading it:
+
+- **400 random mixed-width bodies** (1-, 2-, 3- and 4-byte characters including `😀` and
+  `𝄞`) × chunk sizes 1–20: lossless reassembly, `next_offset` strictly increasing, no
+  U+FFFD before EOF, **maximum overshoot exactly 3 bytes**.
+- **Six malformed inputs** × five sizes: all drain, none stall.
+- **The 64 KB hard cap is never exceeded, and that is structural rather than lucky.**
+  `_last_sequence_start` inspects only the last four bytes, so `start == 0` — the sole
+  branch that *extends* the read — is reachable only when the chunk is ≤4 bytes. At
+  `LOG_CHUNK_MAX_BYTES` the trim branch always wins. ADR 0009's "three bytes of slack does
+  not weaken it" is therefore **stronger than it claims**: at the cap the slack is zero.
+
+Mutation-checked against `tests/contracts/test_log_streaming.py`:
+
+| Mutation | Result |
+| --- | --- |
+| `if read_upto < size:` → `if False:` (the original CP1-4 bug) | **7 failed** |
+| `if start > 0:` → `if start >= 0:` (the first pass's retreat-only fix) | **2 failed** |
+| `min(max_bytes, LOG_CHUNK_MAX_BYTES)` → `... * 2` | **1 failed** |
+| no-op control | clean |
+
+The retreat-only mutant **fails rather than hangs** — the test carries a bounded loop plus
+`assert next_offset > offset`, which converts a starvation defect from a CI timeout into a
+gate failure with a readable message. That is the best-engineered thing in this suite and
+is worth preserving verbatim through Slice 5.
+
+Two equivalent mutants were investigated and are **not** oracle defects, recorded so the
+next reader does not re-derive them:
+
+- Narrowing `_last_sequence_start`'s lookback window from 4 to 3 bytes changes nothing for
+  valid UTF-8: detecting an incomplete sequence never needs more than the last three
+  bytes, because lead + three continuations is already complete.
+- `_utf8_sequence_length`'s final `return 1` is **unreachable from its only call site** —
+  `_last_sequence_start` returns an index whose byte is by construction not a continuation
+  byte. So ADR 0009's stated mechanism for "malformed input must still advance" is not the
+  mechanism that actually delivers it. The guarantee holds; the explanation is wrong.
+
+Produced **S7**.
+
+### A14 and A15 — both pins are the right call; A14's coverage and A15's premise are not
+
+**A14: right, and the stronger of the two.** `pytest.raises(TypeError, match=...)` cannot
+be misread as endorsement, and the parametrised companion bounds the characterisation so
+the bug is not overstated as "staleness is broken." Reachability re-verified independently:
+`fastapi_run.py:1124` (`_compute_cutoff_iso`) and `prefect_run.py:680` both emit
+`Z`-suffixed aware cutoffs, the fixture's `datePosted` is date-only and therefore naive,
+and the comparison raises. Produced **S8** — the second call site.
+
+**A15: right in principle.** Pinning "the heuristic ignores `candidate_german_level`" as
+*current* behaviour is correct. Making the field live is a scoring behaviour change that
+moves every German posting at once — bucket **C**, wanting a deliberate decision about
+intended semantics — and a tripwire that fires the day someone wires it up is precisely
+what `TEST-STRATEGY` §2.4 asks for. The tripwire does fire: any plausible wiring compares
+candidate rank against the posting's required level, which splits `A1 / B1 / B2 / C2 /
+Native / Unknown` into more than one value. Produced **S9** — the premise, not the pin.
+
+Neither pin should be converted to a fix here. Both bugs are live and both fixes are
+behaviour changes that want their own commits, which is the whole point of §2.4.
+
+### Mutation verification should be standing — but it needs a harness, not a policy
+
+The campaign worked, and it is now a base rate rather than an anecdote: **two can't-fail
+assertions in the file written to answer CP-1**, by an author who knew to look for exactly
+that. Review does not catch this class. Mutation does.
+
+The problem is that the evidence is **prose in a commit message**. The 29 mutations are
+not enumerated, the harness is not in `scripts/`, and nothing is re-runnable. By this
+repo's own standard that is a note where an executable check belongs, and it graded the
+suite once, at `db3b908`. Slice 3 moves `stepstone/` into `sources/`; Slice 5 moves
+`run_manager`. After either, the grade is stale and cannot be re-derived.
+
+The second pass's own 12 mutations are the argument: three survivors the original campaign
+did not have (the language subsystem, the ADR 0009 bound, A14's second site). That is not
+a criticism of it — it was scoped to the L3 file's own claims and did that job cleanly —
+it is evidence that a scoped one-off leaves everything outside its scope ungraded, which
+is what "standing" fixes.
+
+**Recommended shape:**
+
+1. **Commit the harness as `scripts/mutate.py`, with the mutation set as data** — a list
+   of `(file, anchor, replacement, expected-red tests)`. "29 mutations" becomes a
+   reviewable artifact instead of a claim, and a diff to it is a reviewable change.
+   **Use bytes I/O.** `db3b908`'s own commit message records that `read_text`/`write_text`
+   normalised CRLF→LF and the revert assertion could not see it, both sides being
+   normalised on read — a can't-fail assertion *inside the verification tool*. That is
+   the failure mode recurring one level up and it is the best possible argument for
+   committing the tool where it can be reviewed.
+2. **Report the mutation score in `ci/baseline.json` as a reported metric, never a gate** —
+   the status coverage already has under **R3**. As a ratchet key it would be gamed, by
+   adding mutations that die easily; the number would become a target rather than a
+   measurement. Reported, it does everything needed: it is visible when it moves.
+3. **Gate it in exactly one narrow place**: a new or modified test file ships with its
+   mutation set and a clean run, checked at review time rather than in CI. The failure
+   mode is *a new assertion that cannot fail*, so the check belongs where new assertions
+   appear — not spread across the whole suite on every commit.
+4. **Re-run the set after Slices 3, 5 and 7** — the three that move code the mutations
+   point at. Anchor-based mutations break when code moves, and that is a feature: a broken
+   anchor demands re-aiming, where a line-number-based one would silently pass.
+
+This is **AGENT-WORKFLOW/TEST-STRATEGY scope, not a CP-1 blocker.** It is recorded here
+because CP-1 is where the evidence for it was generated, twice.
+
+### The suite is not offline, and the file that says it is does not check
+
+> ✅ **CLOSED 2026-08-02, and this was the more important half of CP1-8.** The fourth claim
+> is now executable: `tests/net_guard.py` refuses egress suite-wide, and
+> `tests/test_suite_hermeticity.py` §3 asserts the guard is installed, that `httpx` cannot
+> get past it, that a refusal swallowed by a broad `except Exception:` still fails the
+> test, and that `conftest`'s hooks are still wired — that last one because deleting them
+> would leave every other network test green while leaks went back to invisible, which is
+> this same failure repeating one level up.
+>
+> One boundary was chosen rather than inherited and is recorded in `net_guard.py`:
+> **loopback is allowed.** What makes a gate machine-dependent is egress. A local database
+> is already pinned by the engine assertion, and `-m external` needs a loopback port to
+> reach Playwright's browser. `test_loopback_is_deliberately_allowed` pins it so the next
+> reader meets a decision rather than an oversight.
+
+Recorded separately from CP1-8 because it is the wider fact, and CP1-8 is only the
+instance that was found first.
+
+`conftest.py`: *"Offline and deterministic. No live network, no DB container, no
+Playwright, no LLM."* `tests/test_suite_hermeticity.py` makes that executable for three of
+the four — environment variables, the database URL, the settings flags. **Network is not
+covered.** Measured: `/search_stepstone` issues a real request to
+`https://www.stepstone.de/en/` during a normal gate run, from two different tests.
+
+This is `bf88f64`'s job left half done. That commit fixed the environment leak for the
+database because that was the leak CP1-7 exposed; the same class of leak on the network
+was never looked for, because no failing test pointed at it. The fix is one autouse guard
+that fails on an outbound connection, and it converts "offline" from a docstring into
+something the gate enforces — which is the entire pattern of CP1-7 and A13.
+
+Filed as part of **CP1-8**'s fix rather than as its own item, because the two want the
+same commit and the guard is what stops the next inert stub from being invisible.
+
+### What did not move
+
+`ci/baseline.json` is unchanged and should stay unchanged: the second pass added no tests
+and no `app/` code. pytest 291, pyright 32, ruff 747, imports 2, failed 0. Every mutation
+and probe above was reverted and the working tree verified byte-identical by checksum.
+
+Note for whoever closes CP1-8: **fixing it will change `pytest_passed` only if you add
+tests, but it may change the suite's runtime materially** — two live HTTP requests leave
+the gate. If the network guard turns anything else red, that is a find, not a regression.
