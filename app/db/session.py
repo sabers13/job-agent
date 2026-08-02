@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from contextlib import contextmanager
 from typing import TypeVar
 
@@ -77,27 +77,6 @@ def run_db_with_retries(
 
 def ping_db(session: Session) -> None:
     session.execute(text("SELECT 1"))
-
-
-def get_db(max_retries: int = 2, base_sleep: float = 0.4) -> Generator[Session, None, None]:
-    attempt = 0
-    while True:
-        db = SessionLocal()
-        try:
-            ping_db(db)
-            yield db
-            return
-        except (OperationalError, DBAPIError) as exc:
-            if attempt < max_retries and is_transient_db_error(exc):
-                time.sleep(base_sleep * (2**attempt))
-                attempt += 1
-                continue
-            raise
-        finally:
-            try:
-                db.close()
-            except Exception:
-                pass
 
 
 @contextmanager
