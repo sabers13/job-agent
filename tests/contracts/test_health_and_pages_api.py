@@ -25,7 +25,12 @@ def test_health_reports_the_documented_flags(client_unauthed) -> None:
 def test_health_config_returns_a_status(client_unauthed) -> None:
     response = client_unauthed.get("/health/config")
 
-    assert response.status_code in (200, 503), response.text
+    # Same pinned test environment as `/health/db` below (CP1-7 / backlog A13).
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["config_ok"] is True
+    assert body["output_ok"] is True
+    assert body["db_ok"] is True
 
 
 def test_health_db_reports_reachability(client_unauthed) -> None:
@@ -64,7 +69,7 @@ def test_signup_then_login_round_trips(client_unauthed) -> None:
     signup = client_unauthed.post(
         "/auth/signup", json={"email": "newuser@example.com", "password": "hunter2hunter2"}
     )
-    assert signup.status_code in (200, 201), signup.text
+    assert signup.status_code == 201, signup.text
 
     login = client_unauthed.post(
         "/auth/login", json={"email": "newuser@example.com", "password": "hunter2hunter2"}
@@ -97,11 +102,11 @@ def test_signup_rejects_a_malformed_email(client_unauthed) -> None:
         "/auth/signup", json={"email": "not-an-email", "password": "hunter2hunter2"}
     )
 
-    assert response.status_code in (400, 422), response.status_code
+    assert response.status_code == 422, response.text
 
 
 def test_logout_is_always_safe_to_call(client_unauthed) -> None:
-    assert client_unauthed.post("/auth/logout").status_code in (200, 204)
+    assert client_unauthed.post("/auth/logout").status_code == 200
 
 
 # --------------------------------------------------------------------------- #
@@ -175,25 +180,29 @@ def test_search_stepstone_returns_the_adapter_result(
 def test_search_stepstone_list_validates_its_body(client_unauthed) -> None:
     response = client_unauthed.post("/search_stepstone_list", json={})
 
-    assert response.status_code in (200, 400, 422), response.status_code
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "seed_url"]
 
 
 def test_job_details_validates_its_body(client_unauthed) -> None:
     response = client_unauthed.post("/job_details", json={})
 
-    assert response.status_code in (200, 400, 422), response.status_code
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "url"]
 
 
 def test_bundle_validates_its_body(client_unauthed) -> None:
     response = client_unauthed.post("/bundle", json={})
 
-    assert response.status_code in (200, 400, 422), response.status_code
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "job"]
 
 
 def test_aggregate_report_validates_its_body(client_unauthed) -> None:
     response = client_unauthed.post("/aggregate_report", json={})
 
-    assert response.status_code in (200, 400, 422, 404), response.status_code
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "reports"]
 
 
 @pytest.mark.external

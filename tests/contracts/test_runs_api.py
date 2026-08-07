@@ -136,9 +136,12 @@ def test_potential_application_detail_unknown_key_is_404(client, test_user, make
     )
 
 
-@pytest.mark.parametrize("job_key", ["../escape", "a/b", "..", "%2e%2e"])
+@pytest.mark.parametrize(
+    ("job_key", "expected_status"),
+    [("../escape", 404), ("a/b", 404), ("..", 404), ("%2e%2e", 400)],
+)
 def test_potential_application_detail_rejects_path_traversal(
-    client, test_user, make_run, job_key: str
+    client, test_user, make_run, job_key: str, expected_status: int
 ) -> None:
     """`_safe_job_key` exists to stop a job key escaping the run directory.
 
@@ -149,7 +152,7 @@ def test_potential_application_detail_rejects_path_traversal(
 
     response = client.get(f"/api/run_artifacts/{run_id}/potential_applications/{job_key}")
 
-    assert response.status_code in (400, 404, 422), response.status_code
+    assert response.status_code == expected_status, response.text
 
 
 # --------------------------------------------------------------------------- #
@@ -158,26 +161,59 @@ def test_potential_application_detail_rejects_path_traversal(
 
 
 def test_start_batch_run_returns_a_run_id_without_running_anything(
-    client, monkeypatch: pytest.MonkeyPatch
+    client, db_session, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The endpoint's contract is "accept and hand back a run id", not "finish a run".
+    """A known profile mints a run id and dispatches the requested batch arguments.
 
-    The orchestrator is stubbed so the default suite stays offline; what is asserted is
-    the response shape and that a run id is minted.
+    Both orchestrator backends are stubbed so the default suite stays offline. Recording
+    the selected backend and its arguments proves the request reached the stub.
     """
     import app.fastapi_run as fr
+    from app.db.models import Profile
 
-    monkeypatch.setattr(fr, "_run_prefect_batch", lambda *a, **k: None, raising=False)
-    monkeypatch.setattr(fr, "_run_prefect_inprocess_batch", lambda *a, **k: None, raising=False)
+    profile_model = fr.FocusProfileModel(
+        profile_key="junior_data_bi",
+        profile_name="Junior Data/BI",
+        search_seeds=[],
+    )
+    db_session.add(
+        Profile(
+            user_id=test_user.id,
+            profile_key=profile_model.profile_key,
+            profile_name=profile_model.profile_name,
+            description=profile_model.description,
+            focus_config_json=profile_model.model_dump_json(),
+        )
+    )
+    db_session.commit()
+
+    calls: list[tuple[str, str, int]] = []
+
+    def record_call(backend: str, args: tuple[object, ...], kwargs: dict[str, object]) -> None:
+        assert args == ()
+        profile_key = kwargs["profile_key"]
+        search_cfg = kwargs["search_cfg"]
+        assert isinstance(profile_key, str)
+        assert isinstance(search_cfg, fr.BatchSearchConfig)
+        calls.append((backend, profile_key, search_cfg.max_age_days))
+
+    def record_batch(*args: object, **kwargs: object) -> None:
+        record_call("batch", args, kwargs)
+
+    def record_inprocess_batch(*args: object, **kwargs: object) -> None:
+        record_call("inprocess", args, kwargs)
+
+    monkeypatch.setattr(fr, "_run_prefect_batch", record_batch)
+    monkeypatch.setattr(fr, "_run_prefect_inprocess_batch", record_inprocess_batch)
 
     response = client.post(
         "/api/start_batch_run",
         json={"profile_key": "junior_data_bi", "search": {"max_age_days": 7}},
     )
 
-    assert response.status_code in (200, 404), response.text
-    if response.status_code == 200:
-        assert response.json()["run_id"]
+    assert response.status_code == 200, response.text
+    assert response.json()["run_id"]
+    assert calls == [("batch", "junior_data_bi", 7)]
 
 
 def test_prune_url_pool_requires_a_known_profile(client) -> None:
@@ -193,5 +229,6 @@ def test_run_single_is_reachable_and_validates_its_body(client) -> None:
     """A malformed body must be rejected by validation, not by a 500 deeper in."""
     response = client.post("/api/run_single", json={})
 
-    assert response.status_code in (200, 400, 404, 422), response.text
-    assert response.status_code != 500
+    assert response.status_code == 422, response.text
+    locations = {tuple(error["loc"]) for error in response.json()["detail"]}
+    assert locations == {("body", "profile_key"), ("body", "url")}
