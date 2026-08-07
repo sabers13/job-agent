@@ -25,7 +25,7 @@ def test_resumes_listing_is_empty_for_a_new_user(client) -> None:
 
 def test_upload_then_list_then_fetch(client) -> None:
     uploaded = _upload(client)
-    assert uploaded.status_code in (200, 201), uploaded.text
+    assert uploaded.status_code == 200, uploaded.text
     resume_id = uploaded.json()["resume_id"]
 
     listing = client.get("/api/my/resumes")
@@ -65,7 +65,8 @@ def test_unknown_resume_is_404(client) -> None:
 def test_malformed_resume_id_does_not_500(client) -> None:
     response = client.get("/api/my/resume/not-a-uuid")
 
-    assert response.status_code in (400, 404, 422), response.status_code
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "Invalid resume_id"
 
 
 def test_activating_an_unknown_resume_is_404(client) -> None:

@@ -69,7 +69,7 @@ def test_signup_then_login_round_trips(client_unauthed) -> None:
     signup = client_unauthed.post(
         "/auth/signup", json={"email": "newuser@example.com", "password": "hunter2hunter2"}
     )
-    assert signup.status_code in (200, 201), signup.text
+    assert signup.status_code == 201, signup.text
 
     login = client_unauthed.post(
         "/auth/login", json={"email": "newuser@example.com", "password": "hunter2hunter2"}
@@ -102,11 +102,11 @@ def test_signup_rejects_a_malformed_email(client_unauthed) -> None:
         "/auth/signup", json={"email": "not-an-email", "password": "hunter2hunter2"}
     )
 
-    assert response.status_code in (400, 422), response.status_code
+    assert response.status_code == 422, response.text
 
 
 def test_logout_is_always_safe_to_call(client_unauthed) -> None:
-    assert client_unauthed.post("/auth/logout").status_code in (200, 204)
+    assert client_unauthed.post("/auth/logout").status_code == 200
 
 
 # --------------------------------------------------------------------------- #

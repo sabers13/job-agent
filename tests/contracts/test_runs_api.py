@@ -136,9 +136,12 @@ def test_potential_application_detail_unknown_key_is_404(client, test_user, make
     )
 
 
-@pytest.mark.parametrize("job_key", ["../escape", "a/b", "..", "%2e%2e"])
+@pytest.mark.parametrize(
+    ("job_key", "expected_status"),
+    [("../escape", 404), ("a/b", 404), ("..", 404), ("%2e%2e", 400)],
+)
 def test_potential_application_detail_rejects_path_traversal(
-    client, test_user, make_run, job_key: str
+    client, test_user, make_run, job_key: str, expected_status: int
 ) -> None:
     """`_safe_job_key` exists to stop a job key escaping the run directory.
 
@@ -149,7 +152,7 @@ def test_potential_application_detail_rejects_path_traversal(
 
     response = client.get(f"/api/run_artifacts/{run_id}/potential_applications/{job_key}")
 
-    assert response.status_code in (400, 404, 422), response.status_code
+    assert response.status_code == expected_status, response.text
 
 
 # --------------------------------------------------------------------------- #
