@@ -110,8 +110,21 @@ Both patches were written from reading; both broke on contact with the running c
 
 ## 1b. Routing — what goes to Codex
 
-**Default: Codex executes, Claude Code briefs.** Reverse the burden of proof — a slice
-goes to Claude Code only if there's a reason it can't go to Codex.
+**Codex does the coding. Claude Code is reserved for critical moments.** Chat observes,
+reviews reports and decides. A slice goes to Claude Code only when there is a stated
+reason Codex cannot do it — and "it feels safer" is not one.
+
+Critical moments, exhaustively:
+
+- **Discovery** — a dry run in a scratch worktree to turn unknowns into measurements
+  before a brief exists
+- **Judgement calls inside a fix** — A14's fix shape, A15's severity, anything where the
+  right answer isn't derivable from the brief
+- **A Codex ESCALATE** that turns out to need code, not a decision
+- **Spikes** — no fixed scope by definition
+
+Everything else — the moves, the shims, the renames, the mechanical passes, the test
+batches — goes to Codex.
 
 That's a change from the original framing, and Slice 2 is the evidence. Codex executed a
 44-file pass, produced a tree-hash reproducibility proof, left `tests/`, `docs/` and

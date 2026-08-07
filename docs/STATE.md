@@ -28,7 +28,7 @@ though it does not change the slice's shape.
 | **CP‑1 — oracle review, both passes** | ✅ **CLOSED.** CP1-1 … CP1-8 all fixed |
 | **Slice 2 — lint + packaging** | ✅ merged at `80e73c8`; report at `346664e` |
 | **Slice 2.5 — single-process spike** | ✅ **PASSED** 2026-08-07 — verdict in `refactor-plan.md` §6 |
-| **CP‑2 — spike verdict** | ▶️ **the next action.** It passed, so this is the five-minute version |
+| **CP‑2 — spike verdict** | ✅ **CLOSED 2026-08-07.** Passed. Slice 8 stays a refactor; scope widened — see below |
 | S1's remaining seven wide accept sets | ⬜ before Slice 3 (scheduling, not a gate) |
 | Slice 3 | ⬜ unblocked — but **CP‑2, then CP‑3 + the liveness audit, run first** |
 | S2–S5, S7, S8, S9 | ⬜ before Slice 5 |
@@ -52,6 +52,29 @@ question: the in-process path never writes its exception's traceback to `run.log
 shape — a 25-byte log for a failed run), and it double-writes every log line by adding one
 `FileHandler` to both the root and `prefect` loggers. Both are in `refactor-plan.md` §6 and both
 land naturally inside Slice 8.
+
+### CP‑2 verdict (closed, 2026-08-07)
+
+Passed. Slice 8 remains a refactor — estimate and risk rating unchanged, risk-register
+row 9 closed. **Its scope widens on three counts**, all from the spike:
+
+1. **"In-process" is a misnomer.** Prefect spawns a second uvicorn on port 8912 as a
+   child, and it survives `SIGTERM` — a process and port leak across restarts. Today's
+   path removes the second *terminal*, not the second *process*. Single-process is still
+   ahead, not behind. `LocalOrchestrator` must own worker lifecycle through `lifespan`,
+   and the acceptance test is that no listener remains after shutdown.
+2. **Prefect's config lives outside the repo.** `unset PREFECT_API_URL` does not clear
+   it — the value comes from `~/.prefect/profiles.toml`, and ephemeral mode defaults to
+   `False` in 3.1.15. So behaviour depends on files a fresh user machine does not have.
+   This is the third instance of the same disease: `.env.dev` leaking into the test
+   suite, self-invalidating counts in STATE.md, now the Prefect profile. It is a direct
+   argument *for* `LocalOrchestrator` — removing Prefect removes the ambient surface
+   entirely, which is what the one-click goal actually requires.
+3. **Two observability defects** found and deliberately unfixed: the in-process path
+   never writes its traceback to `run.log` (runs 1–2 left a 25-byte log with HTTP 200 and
+   a correct `failed` status — an artifact that cannot explain its own failure, the A3
+   shape), and every line is logged twice from one `FileHandler` on both the root and
+   `prefect` loggers. Both land inside Slice 8.
 
 ### What landed the session before (`db3b908..HEAD` at that time)
 
@@ -113,17 +136,13 @@ total 52%.
 
 ## Next three actions
 
-1. **CP‑2 — spike verdict.** Five minutes: the spike passed, so confirm and move on. Read
-   `refactor-plan.md` §6 "Slice 2.5 result". The one thing worth a decision rather than a nod is
-   caveat 3 — the path that makes the one-click goal work today leaves an orphaned Prefect server
-   process listening after the app exits, so "single-process" is still ahead of us, not behind.
-2. **S1's remaining seven wide accept sets**, before Slice 3. Scheduling, not a
+1. **S1's remaining seven wide accept sets**, before Slice 3. Scheduling, not a
    correctness gate: `AGENTS.md` §Conventions forbids the shape the gated suite still
    contains, and a conventions file carrying a live counterexample teaches the
    counterexample. One correction so the fix does not over-claim — `/health/config`
    (`test_health_and_pages_api.py:28`) is **not** vacuous; that route can return 200, 500
    **or** 503, so `in (200, 503)` does exclude an outcome.
-3. **CP‑3**, then the liveness audit, then Slice 3. Slice 3 moves `app/stepstone/` into
+2. **CP‑3**, then the liveness audit, then Slice 3. Slice 3 moves `app/stepstone/` into
    `sources/`. Decide **D3** (`stepstone/smoke.py` is a deletion candidate) knowing it is
    the module `/search_stepstone` resolves to — and that `stub_stepstone_adapter` in
    `tests/conftest.py` binds `ss_search` with `raising=True`, so it will fail loudly rather
