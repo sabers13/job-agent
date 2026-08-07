@@ -38,8 +38,20 @@ restarting buys accuracy and money at the same time.
 
 ```
 1 × writer  (Claude Code OR Codex — never both)
-1 × Chat    (read-only — cannot collide, run it whenever)
+1 × Chat    (reads code, writes docs — cannot collide, run it whenever)
 ```
+
+**"Chat" means a Cowork session with this repo folder connected**, not a web chat window.
+The whole arrangement depends on it: a handoff is a pointer because Chat can open the files
+the pointer names. Without repo access you are back to pasting state, which is the failure
+this document exists to prevent.
+
+Chat is **read-only with respect to `app/` and `tests/`** — it never writes code, and that is
+what makes it safe to run alongside a writer. It **does** write docs, and must: `AGENTS.md`,
+`docs/adr/`, `docs/backlog.md`, `docs/refactor-plan.md`, `docs/STATE.md`. Its own CLOSE prompt
+below instructs exactly that. A checkpoint's exit condition is a set of files changed, not a
+conversation had — CP‑3 closes bucket D and populates bucket C, which are edits. Three
+decisions have already been lost to being made in Chat and never written down.
 
 Two agents writing concurrently is possible — separate branches in separate git
 worktrees — but it is not worth it here. Each worktree needs its own `.venv` (165
