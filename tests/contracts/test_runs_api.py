@@ -193,5 +193,6 @@ def test_run_single_is_reachable_and_validates_its_body(client) -> None:
     """A malformed body must be rejected by validation, not by a 500 deeper in."""
     response = client.post("/api/run_single", json={})
 
-    assert response.status_code in (200, 400, 404, 422), response.text
-    assert response.status_code != 500
+    assert response.status_code == 422, response.text
+    locations = {tuple(error["loc"]) for error in response.json()["detail"]}
+    assert locations == {("body", "profile_key"), ("body", "url")}
