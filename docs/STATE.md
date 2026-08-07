@@ -19,8 +19,9 @@ remaining items are **S** (should-fix) and **L** (latent), neither of which bloc
 refactor — neither its estimate nor its risk rating changes — but its scope widened on three
 counts recorded below and in `refactor-plan.md` §6.
 
-**S1's accept sets are closed too, merged at `c1daf51`.** The next action is **the liveness
-audit**, then CP‑3. **Slice 3 is blocked until CP‑3 closes**
+**S1's accept sets are closed (`c1daf51`) and the liveness audit is done**
+(`docs/liveness-report.md`, generated against `fd85028`). **CP‑3 is the next action — a new
+Chat session, not this one.** **Slice 3 is blocked until CP‑3 closes**
 (`CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start").
 
 | | Status |
@@ -32,8 +33,8 @@ audit**, then CP‑3. **Slice 3 is blocked until CP‑3 closes**
 | **Slice 2.5 — single-process spike** | ✅ **PASSED** 2026-08-07 — verdict in `refactor-plan.md` §6 |
 | **CP‑2 — spike verdict** | ✅ **CLOSED 2026-08-07.** Passed. Slice 8 stays a refactor; scope widened — see below |
 | **S1's seven wide accept sets** | ✅ **CLOSED**, merged `c1daf51`. Gate re-run post-merge: all five metrics unmoved |
-| **Liveness audit** | ⬜ **NEXT ACTION.** Prerequisite for CP‑3 — prompt in `liveness-audit.md` |
-| CP‑3 | ⬜ blocked on the liveness audit |
+| **Liveness audit** | ✅ **DONE 2026-08-07** — `docs/liveness-report.md`, 1,174 lines. Corrected 4 bucket‑D premises, found A17/A18 |
+| **CP‑3** | ⬜ **NEXT ACTION.** Chat, new session. Agenda in `CHAT-CHECKPOINTS.md` §CP‑3 |
 | Slice 3 | ⬜ **BLOCKED by CP‑3** — not unblocked. `CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start" |
 | S2–S5, S7, S8, S9 | ⬜ before Slice 5 |
 | L1–L4 | ⬜ before Slice 7 |
@@ -173,19 +174,43 @@ total 52%.
      updated: this is now a standing constraint, and Slice 6's brief must either accept
      out-of-sandbox verification explicitly or route verification to Claude Code.
 
-1. **The liveness audit — the next action.** Run before CP‑3, not after. `liveness-audit.md` §Sequencing and
-   `CHAT-CHECKPOINTS.md` §CP‑3 ("Prerequisite — run the liveness audit first") both say so;
-   this file previously had the order reversed. Its own prompt specifies Opus 5 / `xhigh`
-   in a dedicated session with `docs/architecture.md` in context. Output is
-   `docs/liveness-report.md`; §4 is the input to CP‑3.
+0b. ~~The liveness audit~~ — **DONE**, `docs/liveness-report.md` (1,174 lines, five-section
+   output contract, generated against `fd85028`). What it changed, all already written into
+   the files that CP‑3 reads:
 
-2. **CP‑3** (Chat), agenda in `CHAT-CHECKPOINTS.md` §CP‑3. Take **D1** first — it reshapes
-   A6/A8/A9/A10 and the whole migration-proof exception. Two items now arrive with evidence
-   attached rather than as open questions: **A12**'s auth posture is where the two deferred
-   GUI accept sets go, and **`FocusProfileModel`'s absence from `app.pipeline`'s public
-   surface** is concrete input to Slice 2.9's scope.
+   - **Four bucket‑D premises were wrong**, and `backlog.md` §D is amended in place with the
+     originals struck through. `smoke.py` is *not* the backend-dispatch façade D3 hedged
+     about (it GETs a URL and returns a page `<title>`); `profile_store.py` is 85% covered,
+     not 32%, and is the **seed source** for the DB store rather than a parallel one;
+     `resume_parse.py` is 51%, not "12%, the lowest"; `n8n workflows/` is **tracked**, not
+     untracked, and is the only first-party caller of `/job_details` and `/bundle`.
+   - **Two new bugs, both A3-shaped**, filed as **A17** (`/search_stepstone` returns 500
+     where it means 400 — its own `HTTPException` eaten by its own `except Exception`;
+     `/bundle` has the same shape and is correct, so the fix is copyable) and **A18**
+     (résumé upload cannot report a parse failure, which is *why* D5 is unanswerable).
+   - **Three of the eight types `AGENTS.md` scheduled for `domain/` are dead** —
+     `JobDetailsResponse` is shadowed by a live same-named class in `api/schemas.py`, and
+     `FetchMeta`/`JobScoring` in `pipeline/models.py` are referenced only from inside the
+     dead one. **Slice 2.9 deletes them rather than moving them**; `AGENTS.md` §Target
+     architecture is corrected.
+   - **A3 is 77, not 78** — the 78 was measured on `660a6a0`. Corrected, with a note not to
+     quote the number.
+   - **`architecture.md` is stale in three known places** (it predates `bc301e3`); banner
+     added at the top of that file. It is on CP‑3's read list, so read the banner first.
 
-3. **Slice 3**, once CP‑3 closes. Slice 3 moves `app/stepstone/` into `sources/`. Decide **D3**
+1. **CP‑3 — the next action.** Chat, **new session**, agenda in `CHAT-CHECKPOINTS.md` §CP‑3.
+   Read `liveness-report.md` §4 and §5 before `backlog.md`. Take **D1** first — it reshapes
+   A6/A8/A9/A10 and the whole migration-proof exception, and the audit shrank its cost
+   (one ~30-line mssql function in `app/`; `db/types.py` already dialect-neutral; the
+   Dockerfile's `unixodbc` justification measurably false). Two sequencing constraints the
+   audit produced: **decide D3 before fixing A17**, and **decide D6 before deciding the fate
+   of `/job_details` and `/bundle`.**
+
+   **Decide before the session whether to spend the hour on the manual `coverage run` pass**
+   (`liveness-audit.md` §"Manual step the audit cannot do", report §5 Q8). It has not been
+   done. Ten routes have no caller anywhere in the repo and nothing static can settle them.
+
+2. **Slice 3**, once CP‑3 closes. Slice 3 moves `app/stepstone/` into `sources/`. Decide **D3**
    (`stepstone/smoke.py` is a deletion candidate) knowing it is the module
    `/search_stepstone` resolves to — and that `stub_stepstone_adapter` in
    `tests/conftest.py` binds `ss_search` with `raising=True`, so it will fail loudly rather
@@ -230,6 +255,18 @@ re-runnable harness (`scripts/mutate.py`, mutation set as data, score reported i
 so far has worked and every one has left its evidence as prose in a commit message: not
 enumerated, not re-runnable, stale the moment Slice 3 or 5 moves the code it points at.
 Rationale in [CP-1-REVIEW.md §Second pass](CP-1-REVIEW.md#second-pass--2026-08-02).
+
+**S11 — the one place the audit found coverage that would not catch a refactor.**
+`/search_stepstone_list`, `/job_details`, `/bundle`, `/aggregate_report` and
+`/api/run_single` have tests asserting schema rejection and nothing else: **0 of 90 handler
+statements execute across the five.** `/job_details` (35) and `/api/run_single` (29) are the
+heaviest and both run the full fetch → enrich → score path. **Slice 6 extracts services from
+exactly those bodies.** Note carefully what `s1-accept-sets` did and did not do here: it made
+the assertions precise at the *validation* layer, naming the missing fields — that is real,
+and it is not handler coverage. Precision and coverage are easy to conflate and these five are
+where the difference bites. Slice 6's acceptance criterion is therefore weaker than it reads
+for these routes. **CP‑3 agenda item 4** decides whether behavioural tests land before Slice 6
+or after; after means writing them against already-moved code. Report §5 **Q7**.
 
 **S10 — found 2026-08-07 while measuring the accept sets. FIXED in `501b157`.**
 `test_start_batch_run_returns_a_run_id_without_running_anything`
@@ -302,9 +339,10 @@ exists — `slice/02` was merged and `spike/inprocess-batch` was deleted per its
 | `docs/architecture.md` | Module inventory, dependency graph |
 | `docs/adr/` | Why each decision was made |
 | `docs/adr/0009-…` | The soft-`max_bytes` contract, and **S7**, the missing test for it |
-| `docs/liveness-audit.md` | Prompt to run before CP‑3 — **the next-but-one action** |
+| `docs/liveness-report.md` | **The evidence CP‑3 runs on.** §4 ranked deletion candidates, §5 eight open questions. Read before `backlog.md` §D |
+| `docs/liveness-audit.md` | The spec that produced it. §"Manual step" is the `coverage run` pass, **still not done** |
 | `tests/net_guard.py` | The egress guard and the reasoning behind it. Read before changing how the suite reaches — or does not reach — the network |
-| `tasks/s1-accept-sets.md` | **The Codex brief — the next action.** `slice-02.md` is done and merged |
+| `tasks/` | Codex briefs. `slice-02.md` and `s1-accept-sets.md` are both done and merged |
 
 ## Restart protocol
 

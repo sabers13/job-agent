@@ -77,12 +77,26 @@ run directory if it failed.
 it has been moved, wrapped in a service, and given a router is three slices of wasted
 work. Deletions are cheapest decided before the first structural move touches them.
 
-**Prerequisite — run the liveness audit first.** The prompt is in
-[liveness-audit.md](liveness-audit.md). Do not walk into this session reviewing 40
-features from memory; walk in confirming or overruling a table backed by evidence.
+**Prerequisite — the liveness audit. ✅ DONE 2026-08-07**, output at
+[liveness-report.md](liveness-report.md), 1,174 lines. Walk in confirming or overruling its
+table, not reviewing 40 features from memory.
 
-**Chat reads:** `docs/backlog.md` buckets C and D, the liveness-audit results,
-`docs/architecture.md` §7, `docs/refactor-plan.md` §3.
+**It corrected four bucket-D premises** (D2, D3, D5, D6) and found two new bugs (A17, A18).
+`backlog.md` bucket D is amended in place with pointers; **read the report's §4 and §5 anyway**
+— a corrected premise leaves the decision open, and three D items now turn on a different
+question than the one first recorded.
+
+**Chat reads:** [liveness-report.md](liveness-report.md) §4 and §5 **first**, then
+`docs/backlog.md` buckets C and D, `docs/refactor-plan.md` §3. `docs/architecture.md` §7 is
+stale in three known places — see the banner at the top of that file.
+
+**One thing the audit could not do, and it is yours, not an agent's.**
+[liveness-audit.md](liveness-audit.md) §"Manual step the audit cannot do" specifies a
+`coverage run` pass against the real GUI. **It has not been done** (report §5 Q8). Ten routes
+have no caller anywhere in the repo, and static analysis distinguishes *unreferenced* from
+*referenced* — never *used* from *unused*. Doing it is one careful hour and it is the only
+evidence that can settle those ten. Decide before the session whether to spend it or to defer
+those ten rows; do not discover mid-session that the evidence is missing.
 
 **Agenda:**
 
@@ -107,8 +121,21 @@ features from memory; walk in confirming or overruling a table backed by evidenc
    image is offered to anyone. Route-by-route, using the inventory
    `tests/contracts/test_route_inventory.py` already derives.
 3. Bucket C — behavior and feature changes. Currently empty and deliberately yours to
-   fill. Decide *what* changes; the changes themselves still land after Phase 4.
-4. Amend slice scope for anything dropped.
+   fill. Decide *what* changes; the changes themselves still land after Phase 4. **A18
+   belongs here** — fixing the résumé parse swallow needs a response-schema change, so it
+   is a behaviour decision, and D5 cannot be answered until it lands.
+4. **Q7 — the five `422 only` routes, and it is a sequencing question, not a deletion one.**
+   `/search_stepstone_list`, `/job_details`, `/bundle`, `/aggregate_report` and
+   `/api/run_single` have tests that assert schema rejection and nothing else: **0 of 90
+   handler statements execute across the five.** Slice 6 extracts services from exactly
+   those bodies. The `s1-accept-sets` pass made those assertions precise — it pinned the
+   validation contract and named the missing fields — but precision at the schema layer is
+   not coverage of the handler, and the two are easy to confuse. So Slice 6's stated
+   acceptance criterion ("the contract tests pass unchanged") is **weaker than it looks for
+   these five**: the refactor could break all 90 statements and the gate stays green.
+   Decide here whether behavioural tests go in before Slice 6 or after, because after means
+   writing them against already-moved code.
+5. Amend slice scope for anything dropped.
 
 **Exit:** bucket D closed, bucket C populated and scheduled, `refactor-plan.md` scope
 amended, Slice 3 unblocked.

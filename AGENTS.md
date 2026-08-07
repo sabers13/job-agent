@@ -68,10 +68,18 @@ app/
                   business logic.
   config/         Settings, focus config, profile store. Fail-fast validation.
   domain/         Shared Pydantic types — the project's vocabulary.
-                  UnifiedJobPosting, FocusProfileModel, JobScoring, FetchMeta,
-                  LLMDetail, JobDetailsResponse, BlockerCaps, Constraints.
+                  UnifiedJobPosting, FocusProfileModel, LLMDetail,
+                  BlockerCaps, Constraints.
                   Types only: no I/O, no business logic, no imports from any
                   other app package.
+                  NOTE (2026-08-07): this list read eight types until the
+                  liveness audit measured them. JobDetailsResponse, FetchMeta
+                  and JobScoring in pipeline/models.py have zero LSP
+                  references — JobDetailsResponse is shadowed by a live
+                  same-named class in api/schemas.py that fastapi_run.py:42
+                  actually imports, and the other two are referenced only from
+                  inside the dead one. Slice 2.9 must delete them, not move
+                  them. See liveness-report.md §4 rank 1.
   common/         Shared leaf utilities (utils, logging context). Imports nothing
                   from other app packages. Anything here must be genuinely generic;
                   if it knows about jobs, runs, or profiles, it belongs elsewhere.
@@ -161,7 +169,16 @@ Accurate as of the start of the restructure. Update as slices land.
   attached — never swallow into a generic "failed" status. That pattern is how
   `_LogSink` kept an endpoint permanently broken while returning HTTP 200. When
   re-raising inside `except`, use `raise ... from err` so the original traceback
-  survives. 78 such handlers exist today (backlog A3); do not add a 79th.
+  survives. Roughly 77 such handlers exist (backlog A3, measured on `main` at
+  `fd85028`); do not add another. **Re-measure rather than quoting that number** — it
+  drifts with any commit, and this file previously carried 78, measured on a branch.
+
+  **A broad handler swallows deliberate signals too, not just accidents.**
+  `except Exception` catches the `HTTPException` your own handler raised, so a 400
+  becomes a 500. Measured on `/search_stepstone` (backlog A17). If a handler body can
+  raise `HTTPException`, the enclosing broad `except` needs `except HTTPException: raise`
+  above it — `/bundle` does this and is correct; those two routes are the whole
+  population, so the pattern is copyable.
 - **Never introduce `Any` to silence pyright.** Use `Protocol`, `TypedDict`, or a
   proper generic. If the correct type is genuinely unknowable, use `object` and
   narrow, and leave a comment explaining why.

@@ -5,6 +5,21 @@ each other, what they expose, and where the coupling concentrates.
 
 Generated 2026-07-31 against branch `main` @ `660a6a0`. Analysis only — no code was modified.
 
+> **⚠ STALE IN THREE KNOWN PLACES — checked 2026-08-07 against `fd85028`.** `660a6a0` is not
+> an ancestor of `bc301e3`, so this file predates fixes that have since landed. Do not cite it
+> for these without re-checking:
+>
+> - **`get_db` is described as dead code with one reference.** Fixed in `bc301e3`.
+> - **Three missing `__init__.py` files.** Also fixed in `bc301e3`.
+> - **`app/db/types.py` is absent from the module inventory.** It is new, and it matters — it
+>   is what makes the ORM dialect-neutral, which is direct evidence for D1.
+>
+> Its `_LogSink` finding (backlog A1) **is** still accurate. Everything else was spot-checked
+> and reconciled. For current reference counts, coverage and route status use
+> [liveness-report.md](liveness-report.md), which was generated against `fd85028`; this file
+> remains the better *structural* map (dependency graph, coupling) and the two are complements,
+> not substitutes. Regenerate before CP‑4.
+
 ---
 
 ## 1. Method & caveats
