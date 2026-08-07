@@ -6,7 +6,7 @@ project. Everything else is reference, read on demand.
 **Update this at the end of every session.** A stale STATE.md is worse than none — it
 gets trusted.
 
-_Last updated: 2026-08-02 (CP‑1 closed)_
+_Last updated: 2026-08-07 (Slice 2.5 spike run and closed; CP‑2 now due)_
 
 ---
 
@@ -15,21 +15,45 @@ _Last updated: 2026-08-02 (CP‑1 closed)_
 **CP‑1 is CLOSED.** The oracle is trustworthy. CP1-1 … CP1-8 are all fixed; the review's
 remaining items are **S** (should-fix) and **L** (latent), neither of which blocks.
 
-**Slice 3 is unblocked. Slice 2 is the next action.**
+**Slice 2 and the Slice 2.5 spike are both done. CP‑2 is the next action, and it is the short
+version — the spike passed.** Slice 8 stays a refactor; neither its estimate nor its risk rating
+changes. Bring the three caveats in `refactor-plan.md` §6 to CP‑2 anyway, because the third one
+("in-process" spawns and then leaks a second server process) is new work inside Slice 8 even
+though it does not change the slice's shape.
 
 | | Status |
 | --- | --- |
 | Phases 0–2 · Slice 0 · bugfixes A6, A8, A9 | ✅ |
 | Slice 1 — contract test suite | ✅ `8b0116e` — but see CP‑1: green ≠ trustworthy |
 | **CP‑1 — oracle review, both passes** | ✅ **CLOSED.** CP1-1 … CP1-8 all fixed |
-| **Slice 2 — lint + packaging** | ▶️ **the next action** — `tasks/slice-02.md` |
+| **Slice 2 — lint + packaging** | ✅ merged at `80e73c8`; report at `346664e` |
+| **Slice 2.5 — single-process spike** | ✅ **PASSED** 2026-08-07 — verdict in `refactor-plan.md` §6 |
+| **CP‑2 — spike verdict** | ▶️ **the next action.** It passed, so this is the five-minute version |
 | S1's remaining seven wide accept sets | ⬜ before Slice 3 (scheduling, not a gate) |
-| Slice 3 | ⬜ unblocked — but **CP‑3 + the liveness audit run first** |
+| Slice 3 | ⬜ unblocked — but **CP‑2, then CP‑3 + the liveness audit, run first** |
 | S2–S5, S7, S8, S9 | ⬜ before Slice 5 |
 | L1–L4 | ⬜ before Slice 7 |
-| Slice 2.5 spike · Slice 2.9 `app/domain/` · Slices 4–10 · Phase 5 | ⬜ |
+| Slice 2.9 `app/domain/` · Slices 4–10 · Phase 5 | ⬜ |
 
-### What landed this session (`db3b908..HEAD`)
+> The three rows above the accept-set row were rewritten on 2026-08-07. This file had said
+> "Slice 2 is the next action" since `1944312`, but `git log` shows Slice 2 merged at `80e73c8`
+> with its report at `346664e`. The spike was run against the merged tree.
+
+### What landed this session (2026-08-07)
+
+Documentation only — the Slice 2.5 spike merged no code, by design. `spike/inprocess-batch` was
+branched from `main`, never committed to, and deleted. The verdict is in `refactor-plan.md` §6
+and risk-register row 9 is closed. Three run directories from the spike are on disk under
+`output/3aa9e552-.../junior_data_bi/` — two failed (`20260807T140117`, `20260807T140311`) and one
+`completed` (`20260807T140914`); `output/` is gitignored, so they are local evidence for CP‑2 only.
+
+Two defects were found and deliberately **not** fixed, since the spike's scope was to answer a
+question: the in-process path never writes its exception's traceback to `run.log` (backlog **A3**
+shape — a 25-byte log for a failed run), and it double-writes every log line by adding one
+`FileHandler` to both the root and `prefect` loggers. Both are in `refactor-plan.md` §6 and both
+land naturally inside Slice 8.
+
+### What landed the session before (`db3b908..HEAD` at that time)
 
 CP1-8 — the StepStone route test stubbed nothing and reached the live network.
 
@@ -89,9 +113,10 @@ total 52%.
 
 ## Next three actions
 
-1. **Slice 2 — lint + packaging.** Resume from `tasks/slice-02.md`, on `slice/02`. It was
-   halted pending the CP‑1 verdict and that verdict is now in. Nothing from CP1-8 collides
-   with it: all five commits are `tests/` and `docs/`.
+1. **CP‑2 — spike verdict.** Five minutes: the spike passed, so confirm and move on. Read
+   `refactor-plan.md` §6 "Slice 2.5 result". The one thing worth a decision rather than a nod is
+   caveat 3 — the path that makes the one-click goal work today leaves an orphaned Prefect server
+   process listening after the app exits, so "single-process" is still ahead of us, not behind.
 2. **S1's remaining seven wide accept sets**, before Slice 3. Scheduling, not a
    correctness gate: `AGENTS.md` §Conventions forbids the shape the gated suite still
    contains, and a conventions file carrying a live counterexample teaches the
@@ -119,11 +144,15 @@ total 52%.
 - **A5** — `make_engine` rejects in-memory SQLite. Open; DB fixtures use file-based.
 - **A13** — `check_db` unreachable from fixtures. Environment fix landed and is
   sufficient; the seam defect waits for the Slice 6 service layer.
-- **The network guard stops at the process boundary.** Latent today, and it stops being
-  latent at **Slice 2.5**, whose spike drives batch execution directly —
-  `fastapi_run.py:1297` spawns `python -m app.prefect_run crawl|process`, and a child gets
-  an unpatched socket module. See `backlog.md` §"The network guard stops at the process
-  boundary"; put it in the Slice 2.5 brief's *Stop and ask*.
+- **The network guard stops at the process boundary.** Still true, and **Slice 2.5 has now
+  crossed it deliberately** (2026-08-07): the spike drove a real batch and made live requests to
+  stepstone.de from outside the suite. That was expected and is not a leak — the guard is a
+  `tests/` fixture and the spike ran no tests. The item stays open for the reason it was always
+  open: `fastapi_run.py:1301` spawns `python -m app.prefect_run crawl|process`, and that child
+  gets an unpatched socket module, so a *test* that reaches the subprocess path would egress
+  unnoticed. The spike adds one datum — the in-process path spawns a child too (Prefect's
+  ephemeral server), so "the subprocess path" is no longer the only boundary crossing. See
+  `backlog.md` §"The network guard stops at the process boundary".
 
 ## Known gaps in the oracle
 
@@ -147,10 +176,11 @@ Also open: `prefect_run.py` at 0% (Slice 8 rewrites it, verified differentially,
 
 ## Repo
 
-Working on `main` (deliberate). **`origin/main` is at `f562202`; local `main` is ahead of
-it and unpushed** — CP‑1's closure has not left this machine. `refactor/restructure` is a
-separate worktree at `/home/saber/Asus/job-agent-refactor`, parked at `660a6a0`.
-Branch `slice/02` does not exist yet.
+Working on `main` (deliberate). CP‑1's closure and Slice 2 have both left this machine: `main`
+and `origin/main` were level immediately before this update, so the only unpushed work is this
+session's documentation commit. `refactor/restructure` is a separate worktree at
+`/home/saber/Asus/job-agent-refactor`, parked at `660a6a0`. No `slice/*` or `spike/*` branch
+exists — `slice/02` was merged and `spike/inprocess-batch` was deleted per its brief.
 
 > Do not record an absolute commit count here. Writing it creates a commit, which makes
 > the number wrong the instant it is written — `9b03785 "correct unpushed count to 22"`

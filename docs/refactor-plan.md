@@ -1359,7 +1359,7 @@ DATABASE_URL="sqlite:///:memory:" .venv/bin/python -m pytest tests/contracts -q
 | 6 | Ruff pass swamps a structural diff | 2 | Ships before Slice 3; blame-ignored, following `cee14d1` |
 | 7 | Profile-store ambiguity enshrined in the service layer | 6b | **Closed** — D1 makes the DB canonical (R6) |
 | 8 | `prefect_run.py` refactored at 0% coverage | 8 | **Resolved** — differential backend-equivalence check, not unit tests (R7) |
-| 9 | Slice 8's premise is wrong (flows need a live Prefect API) | 8 | Slice 2.5 spike surfaces it before seven slices of work depend on it (R4) |
+| 9 | Slice 8's premise is wrong (flows need a live Prefect API) | 8 | **Closed 2026-08-07** — spike ran a batch to `completed` with no reachable API. Premise holds; Slice 8 stays a refactor. Three caveats in §6, one of which (Prefect's ephemeral mode spawns and then leaks a second server process) is new work for Slice 8's `lifespan` step |
 | 10 | Models cannot emit DDL for SQLite *or* Postgres | 1, 10 | Bugfix A6 (`sa.Uuid`) lands before the DB-touching contract tests |
 
 **R8 — the hardened check.** Applies to Slices 6 and 7:
@@ -1407,3 +1407,65 @@ above rather than left in the review doc:
    and can begin immediately, in parallel with A6.
 4. **Slice 2.5** — the spike. Cheap, timeboxed, and it is the only thing that can invalidate the
    plan's ninth slice before eight others are built on it.
+
+### Slice 2.5 result — 2026-08-07, `spike/inprocess-batch` (branch deleted, nothing merged)
+
+**Slice 8's premise holds: it is a refactor, not a rewrite. Estimate and risk rating unchanged.**
+A batch ran to completion through `_run_prefect_inprocess_batch` with no separately started
+Prefect server and no `PREFECT_API_URL` in the process environment (verified in
+`/proc/<pid>/environ`, not merely in the shell): terminal `completed`, `return_codes
+{crawl: 0, process: 0}`, a full 75-line trace in `run.log` covering both flows, and scored output
+in the run directory — three bundles under `bundles/100-90_excellent` and `bundles/80-70_acceptable`
+with per-reason explanations, plus `REPORT_SUMMARY.md`, `analysis_summary.json` and
+`run_metrics.json` (8 discovered, 3 processed, 5 `rejected_low_score`). The offset-based log
+contract behaved: `finished` stayed `False` while bytes remained and flipped to `True` on the
+drain poll that returned an empty chunk. There is no silent fallback to the subprocess path at
+[fastapi_run.py:1301](../app/fastapi_run.py#L1301) — `start_batch_run` branches on
+`req.orchestrator` with no `except`-and-retry, and `status.json` recorded
+`params.orchestrator = "prefect_inprocess"` throughout. **But the result carries three caveats
+that Slice 8 must absorb, and the first two are why it took three runs to get there.**
+
+1. **`unset PREFECT_API_URL` does not unset it.** Runs 1 and 2 failed in ~3s with
+   `In-process error: Failed to reach API at http://127.0.0.1:8373/api/` while the environment
+   provably had no `PREFECT_*` variable at all. The value comes from the active Prefect *profile*,
+   which pins `PREFECT_API_URL` in both `~/.prefect/profiles.toml` and `./.prefect/profiles.toml`
+   — in a profile named, with some irony, `ephemeral`. Setting `PREFECT_HOME` does **not** redirect
+   this: `get_current_settings().profiles_path` correctly resolved into the new home, the file
+   there did not exist, and the old profile's URL was still returned. Only an explicit
+   `PREFECT_PROFILES_PATH` pointing at a profile without the key cleared it. Any packaged
+   single-process launcher must neutralise the profile, not the environment variable.
+2. **Ephemeral mode is off by default in Prefect 3.1.15.** `server.ephemeral.enabled` defaults to
+   `False` ([`prefect/settings/models/server/ephemeral.py:18`](../.venv/lib/python3.12/site-packages/prefect/settings/models/server/ephemeral.py#L18)).
+   With no API URL and that default, the flows cannot run at all. Run 3 succeeded only with
+   `PREFECT_SERVER_ALLOW_EPHEMERAL_MODE=true` set alongside a profile carrying no URL.
+3. **"In-process" is a misnomer, and this is the finding that matters most for the one-click
+   goal.** Prefect's ephemeral mode does not run the API in-process; it spawns a *second uvicorn
+   process* — `python -m uvicorn --factory prefect.server.api.server:create_app --host 127.0.0.1
+   --port 8912` — as a child of the app. `run.log` announces it: `Starting temporary server on
+   http://127.0.0.1:8912`. So this path removes the second *terminal*, which is the user-facing
+   half of the goal, but not the second *process*. Worse, on `SIGTERM` to the app the child
+   **survived**, still listening on 8912, reparented to the session subreaper. That is a process
+   and port leak across restarts, and it is direct evidence for Slice 8's "step one" being
+   `on_event` → `lifespan`: the ephemeral server is exactly the thing that needs draining on
+   shutdown. It also means `LocalOrchestrator` must not reach the runnable state by way of Prefect
+   flows — which is what the plan already specifies, so no scope change, but the reason is now
+   measured rather than assumed.
+
+**Two observability defects found in passing** (reported, not fixed — outside the spike's scope).
+Both live in `_run_prefect_inprocess_batch`. First, the failure mode of runs 1 and 2 was invisible
+where it needed to be visible: HTTP 200 on `POST /api/start_batch_run`, `status.json` correctly
+`failed`, and a `run.log` containing **25 bytes** — `$ inprocess prefect flow` and nothing else.
+The handler at [fastapi_run.py:1505](../app/fastapi_run.py#L1505) formats `exc` into
+`status["error"]` and never writes the traceback to the run log, so the run's own artifact cannot
+explain the run's own failure. That is the backlog **A3** shape, on the path Slice 8 is about to
+make the default. Second, every line in a successful `run.log` is written **twice**: the same
+`FileHandler` is added to both the root logger and the `prefect` logger
+([L1436–L1439](../app/fastapi_run.py#L1436)), and `prefect` propagates to root. The 75-line trace
+above is ~38 distinct lines. Harmless today, but it doubles the byte offsets the log-streaming
+contract is measured in.
+
+**Reproduction**, for whoever picks up Slice 8: profile `junior_data_bi` (its `search_seeds` is
+empty, so seeds fall through to `JOBAGENT_STEPSTONE_SEEDS_JSON`), one seed with `max_pages: 1` and
+`max_jobs: 8`, `max_age_days: 14`, both LLM flags off so the run exercises heuristic scoring only.
+Live requests to stepstone.de are expected here and are outside the suite's network guard — that
+guard stops at the process boundary, which this spike was the first thing to actually cross.
