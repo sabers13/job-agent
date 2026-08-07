@@ -19,8 +19,9 @@ remaining items are **S** (should-fix) and **L** (latent), neither of which bloc
 refactor — neither its estimate nor its risk rating changes — but its scope widened on three
 counts recorded below and in `refactor-plan.md` §6.
 
-**The next action is S1's seven remaining wide accept sets, then the liveness audit, then CP‑3.
-Slice 3 is blocked until CP‑3 closes** (`CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start").
+**S1's accept sets are closed too, merged at `c1daf51`.** The next action is **the liveness
+audit**, then CP‑3. **Slice 3 is blocked until CP‑3 closes**
+(`CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start").
 
 | | Status |
 | --- | --- |
@@ -30,8 +31,8 @@ Slice 3 is blocked until CP‑3 closes** (`CHAT-CHECKPOINTS.md` §CP‑3: "Slice
 | **Slice 2 — lint + packaging** | ✅ merged at `80e73c8`; report at `346664e` |
 | **Slice 2.5 — single-process spike** | ✅ **PASSED** 2026-08-07 — verdict in `refactor-plan.md` §6 |
 | **CP‑2 — spike verdict** | ✅ **CLOSED 2026-08-07.** Passed. Slice 8 stays a refactor; scope widened — see below |
-| **S1's remaining seven wide accept sets** | ✅ **ACCEPTED** — `badf1d7`, `501b157`, `4465e80` on `s1/accept-sets`. Gate passed, all five metrics unmoved |
-| Liveness audit | ⬜ **prerequisite for CP‑3**, run first (`liveness-audit.md`) |
+| **S1's seven wide accept sets** | ✅ **CLOSED**, merged `c1daf51`. Gate re-run post-merge: all five metrics unmoved |
+| **Liveness audit** | ⬜ **NEXT ACTION.** Prerequisite for CP‑3 — prompt in `liveness-audit.md` |
 | CP‑3 | ⬜ blocked on the liveness audit |
 | Slice 3 | ⬜ **BLOCKED by CP‑3** — not unblocked. `CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start" |
 | S2–S5, S7, S8, S9 | ⬜ before Slice 5 |
@@ -139,10 +140,10 @@ total 52%.
 
 ## Next three actions
 
-1. **Merge `s1/accept-sets` to `main`**, commit `tasks/s1-accept-sets.report.md` (see
-   below), and delete the branch. Then the accept-set item is closed.
+0. ~~S1's seven wide accept sets~~ — **CLOSED**, merged to `main` at `c1daf51`, branch
+   deleted, gate re-run clean afterwards. Kept here only for the record it leaves behind.
 
-   ~~S1's seven wide accept sets~~ — **done and ACCEPTED.** Enumerated and measured by
+   Enumerated and measured by
    Claude Code (Opus 5 / high), executed by Codex in three commits, reviewed from the
    report. Outcome, for the record: 15 live accept-set assertions in `tests/contracts/`,
    **7 violations · 6 legitimate · 2 deferred.** The seven are narrowed to their measured
@@ -172,13 +173,19 @@ total 52%.
      updated: this is now a standing constraint, and Slice 6's brief must either accept
      out-of-sandbox verification explicitly or route verification to Claude Code.
 
-2. **The liveness audit**, run before CP‑3, not after. `liveness-audit.md` §Sequencing and
+1. **The liveness audit — the next action.** Run before CP‑3, not after. `liveness-audit.md` §Sequencing and
    `CHAT-CHECKPOINTS.md` §CP‑3 ("Prerequisite — run the liveness audit first") both say so;
    this file previously had the order reversed. Its own prompt specifies Opus 5 / `xhigh`
    in a dedicated session with `docs/architecture.md` in context. Output is
    `docs/liveness-report.md`; §4 is the input to CP‑3.
 
-3. **CP‑3**, then Slice 3. Slice 3 moves `app/stepstone/` into `sources/`. Decide **D3**
+2. **CP‑3** (Chat), agenda in `CHAT-CHECKPOINTS.md` §CP‑3. Take **D1** first — it reshapes
+   A6/A8/A9/A10 and the whole migration-proof exception. Two items now arrive with evidence
+   attached rather than as open questions: **A12**'s auth posture is where the two deferred
+   GUI accept sets go, and **`FocusProfileModel`'s absence from `app.pipeline`'s public
+   surface** is concrete input to Slice 2.9's scope.
+
+3. **Slice 3**, once CP‑3 closes. Slice 3 moves `app/stepstone/` into `sources/`. Decide **D3**
    (`stepstone/smoke.py` is a deletion candidate) knowing it is the module
    `/search_stepstone` resolves to — and that `stub_stepstone_adapter` in
    `tests/conftest.py` binds `ss_search` with `raising=True`, so it will fail loudly rather
