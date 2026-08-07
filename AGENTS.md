@@ -235,6 +235,17 @@ Accurate as of the start of the restructure. Update as slices land.
   parameters, and `mssql+pyodbc` carries its credentials inside `odbc_connect`.
 - Logging: structured and run-scoped. Anything happening inside a run must be
   traceable in that run's `run.log`.
+- **`tasks/<ID>.report.md` is always writable and always committable, whether or not the
+  brief's allowlist names it.** The report is the deliverable of the task, not a scope
+  violation, and `scripts/slice_report.sh` creates it as the final step of every brief. An
+  allowlist that omits it is incomplete, not restrictive — commit the report anyway and
+  note it.
+
+  This rule lives here, in the always-loaded file, because stating it only in
+  `AGENT-WORKFLOW.md` §2 has now failed twice. Slice 2 stopped at its final step on the
+  contradiction; `s1-accept-sets` completed but left its report uncommitted. Both workers
+  were reading the brief, which pointed at a different section. A rule that only works when
+  someone remembers to link it is not written down.
 
 ---
 

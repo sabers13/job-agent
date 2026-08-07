@@ -170,16 +170,46 @@ which is the one thing the worker is bad at.
 | Slice 9 — split `scoring.py` | **Codex** | Mechanical once specified |
 | Slice 10 — dialect DB | **Claude Code** | Depends on D1; A10 unresolved |
 | Bugfixes with a judgement call | **Claude Code** | A14's fix shape, A15's severity |
+| S1 accept sets — enumerate + verdict | **Claude Code** | Discovery. Which seven of the 15 was never recorded; each needs a per-test verdict |
+| S1 accept sets — apply | **Codex** | Mechanical once each replacement assertion is specified |
 | Checkpoint reviews | **Chat** | Read-only, decision-shaped |
 
-### One blocker to resolve first
+### Oracle remediation is not a slice
+
+A third work class exists beside slices and bugfixes: **test-side remediation of the oracle
+itself**, whose deliverable *is* a change under `tests/contracts/`. CP1-8's fix (`2c87308`)
+was one; S1's remaining accept sets are the next.
+
+This collides with two things written for slices, and a brief that ignores the collision
+hands Codex a contradiction it will correctly refuse:
+
+- `scripts/slice_report.sh` prints an unconditional `**VIOLATION** tests/ was modified` for
+  any diff touching `tests/`. For this work class that line is **expected output, not a
+  finding.** Say so in the brief.
+- §2's template forbids editing `tests/`, and R8 plus `CHAT-CHECKPOINTS.md`'s escalation
+  trigger forbid editing `tests/contracts/`. Both are scoped to *making a slice pass* —
+  editing the oracle so a structural move goes green inverts the direction of authority.
+  Editing the oracle **as the explicitly briefed deliverable, with no `app/` change in the
+  diff**, is the opposite thing. The brief must state which one it is, and forbid any
+  `app/` path in the allowlist so the distinction is machine-checkable rather than trusted.
+
+### One blocker — now confirmed, not resolved
 
 **Codex cannot run this suite inside its restricted sandbox** — `TestClient` stalls in
 its AnyIO portal, so Slice 2's gates were run outside it. That was harmless for a
 formatting pass. It is not harmless for Slices 6 and 7, whose entire acceptance criterion
-is that the HTTP contract tests pass **unchanged**. Confirm the sandbox situation before
-briefing either, or the worker cannot verify its own work and the report's FACTS section
-becomes unreliable exactly where it matters most.
+is that the HTTP contract tests pass **unchanged**.
+
+**Confirmed 2026-08-07.** `s1-accept-sets` reproduced the stall deliberately and ran its
+gates outside the sandbox, so this is no longer a suspicion to check before briefing
+Slices 6 and 7 — it is a standing constraint. Two consequences:
+
+- Every Codex report's FACTS section is measured **outside** the sandbox. The numbers are
+  real; the isolation is not. Do not read a passing gate as evidence the sandbox is fine.
+- For Slices 6 and 7 specifically, the worker cannot verify its own acceptance criterion
+  under isolation. Either accept out-of-sandbox verification explicitly in the brief, or
+  route the verification step to Claude Code. Decide when briefing Slice 6; do not leave
+  it to the worker.
 
 ---
 

@@ -6,7 +6,7 @@ project. Everything else is reference, read on demand.
 **Update this at the end of every session.** A stale STATE.md is worse than none — it
 gets trusted.
 
-_Last updated: 2026-08-07 (Slice 2.5 spike run and closed; CP‑2 now due)_
+_Last updated: 2026-08-07 (Slice 2.5 spike closed; **CP‑2 closed**; next action is S1's accept sets)_
 
 ---
 
@@ -15,11 +15,12 @@ _Last updated: 2026-08-07 (Slice 2.5 spike run and closed; CP‑2 now due)_
 **CP‑1 is CLOSED.** The oracle is trustworthy. CP1-1 … CP1-8 are all fixed; the review's
 remaining items are **S** (should-fix) and **L** (latent), neither of which blocks.
 
-**Slice 2 and the Slice 2.5 spike are both done. CP‑2 is the next action, and it is the short
-version — the spike passed.** Slice 8 stays a refactor; neither its estimate nor its risk rating
-changes. Bring the three caveats in `refactor-plan.md` §6 to CP‑2 anyway, because the third one
-("in-process" spawns and then leaks a second server process) is new work inside Slice 8 even
-though it does not change the slice's shape.
+**Slice 2, the Slice 2.5 spike and CP‑2 are all done.** The spike passed, so Slice 8 stays a
+refactor — neither its estimate nor its risk rating changes — but its scope widened on three
+counts recorded below and in `refactor-plan.md` §6.
+
+**The next action is S1's seven remaining wide accept sets, then the liveness audit, then CP‑3.
+Slice 3 is blocked until CP‑3 closes** (`CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start").
 
 | | Status |
 | --- | --- |
@@ -29,8 +30,10 @@ though it does not change the slice's shape.
 | **Slice 2 — lint + packaging** | ✅ merged at `80e73c8`; report at `346664e` |
 | **Slice 2.5 — single-process spike** | ✅ **PASSED** 2026-08-07 — verdict in `refactor-plan.md` §6 |
 | **CP‑2 — spike verdict** | ✅ **CLOSED 2026-08-07.** Passed. Slice 8 stays a refactor; scope widened — see below |
-| S1's remaining seven wide accept sets | ⬜ before Slice 3 (scheduling, not a gate) |
-| Slice 3 | ⬜ unblocked — but **CP‑2, then CP‑3 + the liveness audit, run first** |
+| **S1's remaining seven wide accept sets** | ✅ **ACCEPTED** — `badf1d7`, `501b157`, `4465e80` on `s1/accept-sets`. Gate passed, all five metrics unmoved |
+| Liveness audit | ⬜ **prerequisite for CP‑3**, run first (`liveness-audit.md`) |
+| CP‑3 | ⬜ blocked on the liveness audit |
+| Slice 3 | ⬜ **BLOCKED by CP‑3** — not unblocked. `CHAT-CHECKPOINTS.md` §CP‑3: "Slice 3 must not start" |
 | S2–S5, S7, S8, S9 | ⬜ before Slice 5 |
 | L1–L4 | ⬜ before Slice 7 |
 | Slice 2.9 `app/domain/` · Slices 4–10 · Phase 5 | ⬜ |
@@ -136,15 +139,48 @@ total 52%.
 
 ## Next three actions
 
-1. **S1's remaining seven wide accept sets**, before Slice 3. Scheduling, not a
-   correctness gate: `AGENTS.md` §Conventions forbids the shape the gated suite still
-   contains, and a conventions file carrying a live counterexample teaches the
-   counterexample. One correction so the fix does not over-claim — `/health/config`
-   (`test_health_and_pages_api.py:28`) is **not** vacuous; that route can return 200, 500
-   **or** 503, so `in (200, 503)` does exclude an outcome.
-2. **CP‑3**, then the liveness audit, then Slice 3. Slice 3 moves `app/stepstone/` into
-   `sources/`. Decide **D3** (`stepstone/smoke.py` is a deletion candidate) knowing it is
-   the module `/search_stepstone` resolves to — and that `stub_stepstone_adapter` in
+1. **Merge `s1/accept-sets` to `main`**, commit `tasks/s1-accept-sets.report.md` (see
+   below), and delete the branch. Then the accept-set item is closed.
+
+   ~~S1's seven wide accept sets~~ — **done and ACCEPTED.** Enumerated and measured by
+   Claude Code (Opus 5 / high), executed by Codex in three commits, reviewed from the
+   report. Outcome, for the record: 15 live accept-set assertions in `tests/contracts/`,
+   **7 violations · 6 legitimate · 2 deferred.** The seven are narrowed to their measured
+   code with the missing-field content the sets were hiding; the six legitimate ones were
+   tightened anyway in a separate commit labelled as such; **the two deferred are the GUI
+   page routes `health_and_pages:117,123` — backlog A12 wearing an accept set, and on the
+   CP‑3 agenda.** None of the 15 contained 500. `pytest_passed` stayed at 298 across all
+   three commits, which is the check that matters: no test was added or removed, only
+   rewritten.
+
+   `test_start_batch_run_…` (S10, below) came back stronger than briefed — it now asserts
+   `calls == [("batch", "junior_data_bi", 7)]`, so **which backend was dispatched** is
+   observable, not just that a stub fired. Slice 8 replaces that selection; a silent
+   backend switch now fails a test.
+
+   Two things it left behind, both recorded rather than fixed:
+
+   - **`FocusProfileModel` is not on `app.pipeline`'s public surface**, so the test binds
+     `fr.FocusProfileModel` and `fr.BatchSearchConfig` off `fastapi_run`. That is the
+     correct call under the allowlist — importing from `app.pipeline.models` would have
+     violated the submodule rule — and it is **direct evidence for Slice 2.9**, which moves
+     that type to `app/domain/`. Both bindings break loudly (`AttributeError`) when
+     Slice 2.9 or the Slice 6/7 router extraction moves them. That is intended; do not
+     add a shim to soften it.
+   - **The Codex sandbox stall is confirmed, not just suspected** — `TestClient` hangs in
+     its AnyIO portal, so the gate ran outside the sandbox. `AGENT-WORKFLOW.md` §1b is
+     updated: this is now a standing constraint, and Slice 6's brief must either accept
+     out-of-sandbox verification explicitly or route verification to Claude Code.
+
+2. **The liveness audit**, run before CP‑3, not after. `liveness-audit.md` §Sequencing and
+   `CHAT-CHECKPOINTS.md` §CP‑3 ("Prerequisite — run the liveness audit first") both say so;
+   this file previously had the order reversed. Its own prompt specifies Opus 5 / `xhigh`
+   in a dedicated session with `docs/architecture.md` in context. Output is
+   `docs/liveness-report.md`; §4 is the input to CP‑3.
+
+3. **CP‑3**, then Slice 3. Slice 3 moves `app/stepstone/` into `sources/`. Decide **D3**
+   (`stepstone/smoke.py` is a deletion candidate) knowing it is the module
+   `/search_stepstone` resolves to — and that `stub_stepstone_adapter` in
    `tests/conftest.py` binds `ss_search` with `raising=True`, so it will fail loudly rather
    than silently when that symbol moves. That is intended.
 
@@ -188,6 +224,20 @@ so far has worked and every one has left its evidence as prose in a commit messa
 enumerated, not re-runnable, stale the moment Slice 3 or 5 moves the code it points at.
 Rationale in [CP-1-REVIEW.md §Second pass](CP-1-REVIEW.md#second-pass--2026-08-02).
 
+**S10 — found 2026-08-07 while measuring the accept sets. FIXED in `501b157`.**
+`test_start_batch_run_returns_a_run_id_without_running_anything`
+(`tests/contracts/test_runs_api.py:160`) asserts nothing it claims to. The `client`
+fixture seeds a `User` but no `Profile`, so `get_focus_profile_model_for_user` returns
+`None` and the handler raises 404 at `fastapi_run.py:1700`. Measured: as written → 404,
+stub calls `[]`; with a `Profile` row → 200, stub calls `["batch"]`, `run_id` minted. So
+the `if response.status_code == 200:` branch is dead, no run is minted, and **both
+monkeypatched stubs never execute** — the same shape as CP1-8, caught by the accept set
+rather than by a live request this time. Two adjacent defects in the same test: lines
+170–171 use `raising=False` (an `AGENTS.md` violation, and Slice 8 renames exactly those
+two symbols), and line 197's `!= 500` is dead under the accept set above it. All three
+are fixed in `tasks/s1-accept-sets.md` commit 2 — narrowing to `== 404` was rejected
+because it pins the misnomer.
+
 Also open: `prefect_run.py` at 0% (Slice 8 rewrites it, verified differentially, D2/R7);
 **A12**, 18 of 42 routes unauthenticated (pinned, not endorsed — CP‑3 agenda); and
 `/api/profile/{key}` GET/POST/DELETE are **not tenant-scoped** (file-backed store, no
@@ -207,6 +257,11 @@ exists — `slice/02` was merged and `spike/inprocess-batch` was deleted per its
 
 ## Friction worth knowing
 
+- **`tasks/<ID>.report.md` is always committable even when the allowlist omits it.** Now
+  in `AGENTS.md` §Conventions, because stating it only in `AGENT-WORKFLOW.md` §2 failed
+  twice: Slice 2 stopped at its final step on the contradiction, and `s1-accept-sets`
+  finished but left its report uncommitted. Both workers read the brief, which pointed
+  elsewhere.
 - The `ruff-check` hook lints whole staged **files**, so a commit touching most of `app/`
   is blocked by pre-existing Slice 2 findings. `--no-verify` with a stated reason is the
   expected escape. (CP1-8 needed none — all five commits passed every hook.)
@@ -240,9 +295,9 @@ exists — `slice/02` was merged and `spike/inprocess-batch` was deleted per its
 | `docs/architecture.md` | Module inventory, dependency graph |
 | `docs/adr/` | Why each decision was made |
 | `docs/adr/0009-…` | The soft-`max_bytes` contract, and **S7**, the missing test for it |
-| `docs/liveness-audit.md` | Prompt to run before CP‑3 |
+| `docs/liveness-audit.md` | Prompt to run before CP‑3 — **the next-but-one action** |
 | `tests/net_guard.py` | The egress guard and the reasoning behind it. Read before changing how the suite reaches — or does not reach — the network |
-| `tasks/slice-02.md` | The Codex brief — the next action |
+| `tasks/s1-accept-sets.md` | **The Codex brief — the next action.** `slice-02.md` is done and merged |
 
 ## Restart protocol
 
